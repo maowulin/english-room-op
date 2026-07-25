@@ -24,7 +24,10 @@
 
 仓库已完成边界和架构初始化，尚未生成运营 Web 或内部 App 构建代码。
 
-详细设计见 [`docs/architecture.md`](./docs/architecture.md)。
+详细设计见：
+
+- [`docs/architecture.md`](./docs/architecture.md)
+- [`docs/design/README.md`](./docs/design/README.md)
 
 ## 安全约束
 
