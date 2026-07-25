@@ -6,7 +6,7 @@
 
 - 可见性：Private
 - 运营界面：React Web
-- 内部入口：Expo `internal-ops` 构建变体
+- 加载方式：由 App 的通用 WebView 容器加载
 - 公开 App：`maowulin/english-room`
 - 私有后端：`maowulin/english-room-backend`
 - 是否随候选人交付：否
@@ -18,7 +18,7 @@
 - 查看 Sentry Issue、受影响用户、版本分布和 Replay 跳转。
 - 查看房间、录制和评分任务状态。
 - 对允许重试的失败任务发起受审计的重试。
-- 为内部 App 变体提供运营入口和构建配置。
+- 提供白名单 HTTPS 运营 URL，并通过 FastAPI 一次性交接码建立运营会话。
 
 ## 当前状态
 
@@ -28,6 +28,6 @@
 
 ## 安全约束
 
-- 浏览器和内部 App 不持有 Sentry 管理 Token。
+- WebView、浏览器和 App 都不持有 Sentry 管理 Token。
 - 所有运营数据和写操作都通过 FastAPI `/admin/v1/*`。
 - 正式 App Store / Play Store Bundle 不包含本仓库代码。

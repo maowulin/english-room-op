@@ -10,19 +10,18 @@
 english-room-op/
 ├── apps/
 │   └── web/               # React Web 运营管理站
-├── internal-app/          # internal-ops 入口和构建叠加配置
 └── docs/
     └── architecture.md
 ```
 
-运营 UI 使用 React Web。内部 App 不是另一套产品代码，而是私有仓库在构建期检出指定版本的公开 App，并叠加管理员入口和独立 Bundle Identifier/Application ID。
+运营 UI 使用 React Web，由公开 App 的通用 WebView 容器加载。运营仓库只负责 Web 应用和部署配置，不把运营页面源码打进 App；WebView 使用白名单 HTTPS URL 访问运营站。
 
 ## 构建隔离
 
 | 变体 | 代码来源 | 分发 | 运营入口 |
 | --- | --- | --- | --- |
 | `production` | 仅公开 App 仓库 | App Store / Play Store | 不存在 |
-| `internal-ops` | 公开 App + 本私有仓库叠加层 | Ad Hoc、TestFlight 内测或企业分发 | 存在 |
+| `internal-ops` | 公开 App + 通用 WebView 容器 | Ad Hoc、TestFlight 内测或企业分发 | 存在 |
 
 运营平台实现不会进入公开仓库，也不会依赖正式包中的隐藏手势作为安全边界。
 
@@ -36,12 +35,12 @@ sequenceDiagram
 
     Internal->>API: 管理员账号 + MFA
     API-->>Internal: 单用途会话交换码
-    Internal->>Web: 打开运营平台
-    Web->>API: 交换短期 HttpOnly 会话
+    Internal->>Web: WebView 打开白名单 HTTPS URL + handoff code
+    Web->>API: 交换一次性 code
     API-->>Web: RBAC 权限和最小数据
 ```
 
-运营 Web 只调用 FastAPI 管理 API。Sentry 查询由 FastAPI 使用服务端 Token 完成，Web 只接收展示所需的错误摘要、趋势和安全跳转信息。
+运营 Web 只调用 FastAPI 管理 API。Sentry 查询由 FastAPI 使用服务端 Token 完成，Web 只接收展示所需的错误摘要、趋势和安全跳转信息。MVP 不实现 URL 加密；HTTPS、白名单、一次性交接码、服务端会话、RBAC 和审计才是安全边界，长期 Token 不进入 URL、WebView 或 App 配置。
 
 ## V1 页面
 
