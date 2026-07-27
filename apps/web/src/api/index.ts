@@ -11,7 +11,10 @@ export function createOpsApiClient(): OpsApiClient {
   const baseUrl = import.meta.env.VITE_OPS_API_BASE_URL ?? '';
 
   if (mode === 'http' && baseUrl) {
-    return new HttpOpsApiClient(baseUrl);
+    return new HttpOpsApiClient({
+      baseUrl,
+      credentials: 'include',
+    });
   }
 
   return new MockOpsApiClient();

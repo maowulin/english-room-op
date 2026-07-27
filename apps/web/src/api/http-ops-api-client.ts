@@ -7,43 +7,72 @@ import type {
   ScoringTasksResponseWithMeta,
   StabilitySummaryResponse,
 } from './types';
+import {
+  opsFetchJson,
+  type OpsHttpFetcher,
+  type OpsHttpCredentials,
+  type OpsHttpRequestConfig,
+} from './ops-http-request';
 
-const NOT_WIRED =
-  'HttpOpsApiClient 尚未联调 FastAPI；请使用 MockOpsApiClient 或配置 VITE_OPS_API_BASE_URL。';
+export type HttpOpsApiClientOptions = {
+  baseUrl: string;
+  fetcher?: OpsHttpFetcher;
+  credentials?: OpsHttpCredentials;
+  timeoutMs?: number;
+  getAuthorizationHeader?: () => string | Promise<string | undefined>;
+};
+
+const ADMIN = {
+  metricsOverview: '/admin/v1/metrics/overview',
+  metricsStability: '/admin/v1/metrics/stability',
+  rooms: '/admin/v1/rooms',
+  scoring: '/admin/v1/scoring',
+  auditEvents: '/admin/v1/audit/events',
+  scoringRetry: (taskId: string) => `/admin/v1/scoring/${encodeURIComponent(taskId)}/retry`,
+} as const;
 
 /**
- * Future production adapter — maps to:
- * - GET /admin/v1/metrics/*
- * - GET /admin/v1/rooms/*
- * - GET|POST /admin/v1/scoring/*
- * - GET /admin/v1/sentry/*
+ * Production HTTP adapter — maps to FastAPI `/admin/v1/*` (Backend must implement routes + RBAC).
  */
 export class HttpOpsApiClient implements OpsApiClient {
-  constructor(private readonly baseUrl: string) {}
+  private readonly request: OpsHttpRequestConfig;
+
+  constructor(baseUrlOrOptions: string | HttpOpsApiClientOptions) {
+    const options =
+      typeof baseUrlOrOptions === 'string' ? { baseUrl: baseUrlOrOptions } : baseUrlOrOptions;
+
+    this.request = {
+      baseUrl: options.baseUrl,
+      fetcher: options.fetcher ?? fetch,
+      credentials: options.credentials,
+      timeoutMs: options.timeoutMs,
+      getAuthorizationHeader: options.getAuthorizationHeader,
+    };
+  }
 
   getOverviewMetrics(): Promise<OverviewMetricsResponse> {
-    return Promise.reject(new Error(`${NOT_WIRED} GET ${this.baseUrl}/admin/v1/metrics/overview`));
+    return opsFetchJson<OverviewMetricsResponse>(this.request, 'GET', ADMIN.metricsOverview);
   }
 
   getStabilitySummary(): Promise<StabilitySummaryResponse> {
-    return Promise.reject(new Error(`${NOT_WIRED} GET ${this.baseUrl}/admin/v1/sentry/summary`));
+    return opsFetchJson<StabilitySummaryResponse>(this.request, 'GET', ADMIN.metricsStability);
   }
 
   listRooms(): Promise<RoomsListResponseWithMeta> {
-    return Promise.reject(new Error(`${NOT_WIRED} GET ${this.baseUrl}/admin/v1/rooms`));
+    return opsFetchJson<RoomsListResponseWithMeta>(this.request, 'GET', ADMIN.rooms);
   }
 
   listScoringTasks(): Promise<ScoringTasksResponseWithMeta> {
-    return Promise.reject(new Error(`${NOT_WIRED} GET ${this.baseUrl}/admin/v1/scoring/tasks`));
+    return opsFetchJson<ScoringTasksResponseWithMeta>(this.request, 'GET', ADMIN.scoring);
   }
 
   retryScoringTask(taskId: string): Promise<RetryScoringResult> {
-    return Promise.reject(
-      new Error(`${NOT_WIRED} POST ${this.baseUrl}/admin/v1/scoring/tasks/${taskId}/retry`),
-    );
+    return opsFetchJson<RetryScoringResult>(this.request, 'POST', ADMIN.scoringRetry(taskId));
   }
 
   listAuditLog(): Promise<AuditLogResponseWithMeta> {
-    return Promise.reject(new Error(`${NOT_WIRED} GET ${this.baseUrl}/admin/v1/audit/events`));
+    return opsFetchJson<AuditLogResponseWithMeta>(this.request, 'GET', ADMIN.auditEvents);
   }
 }
+
+export { OpsHttpError, OpsHttpTimeoutError } from './ops-http-request';
