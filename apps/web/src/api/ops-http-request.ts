@@ -5,12 +5,23 @@ export type OpsHttpFetcher = (
 
 export type OpsHttpCredentials = RequestCredentials;
 
+export type OpsHttpHeaderProvider = () => string | undefined | Promise<string | undefined>;
+
+export type OpsHttpExtraHeadersProvider = () =>
+  | Record<string, string>
+  | undefined
+  | Promise<Record<string, string> | undefined>;
+
 export interface OpsHttpRequestConfig {
   baseUrl: string;
   fetcher: OpsHttpFetcher;
   credentials?: OpsHttpCredentials;
   timeoutMs?: number;
-  getAuthorizationHeader?: () => string | Promise<string | undefined>;
+  getAuthorizationHeader?: OpsHttpHeaderProvider;
+  getAdminMfaHeader?: OpsHttpHeaderProvider;
+  getAdminRoleHeader?: OpsHttpHeaderProvider;
+  /** Merged after MFA/role headers; later keys do not override Authorization. */
+  getExtraHeaders?: OpsHttpExtraHeadersProvider;
 }
 
 export class OpsHttpError extends Error {
@@ -94,6 +105,25 @@ export async function opsFetchJson<T>(
     : undefined;
   if (authorization) {
     headers.set('Authorization', authorization);
+  }
+
+  const adminMfa = config.getAdminMfaHeader ? await config.getAdminMfaHeader() : undefined;
+  if (adminMfa) {
+    headers.set('X-Admin-MFA', adminMfa);
+  }
+
+  const adminRole = config.getAdminRoleHeader ? await config.getAdminRoleHeader() : undefined;
+  if (adminRole) {
+    headers.set('X-Admin-Role', adminRole);
+  }
+
+  const extra = config.getExtraHeaders ? await config.getExtraHeaders() : undefined;
+  if (extra) {
+    for (const [key, value] of Object.entries(extra)) {
+      if (value) {
+        headers.set(key, value);
+      }
+    }
   }
 
   let response: Response;

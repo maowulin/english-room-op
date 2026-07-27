@@ -1,42 +1,42 @@
-import { useEffect, useState } from 'react';
-
+import { OpsQueryStatus } from '../components/OpsQueryStatus';
+import { useOpsQuery } from '../hooks/useOpsQuery';
 import { opsApiClient } from '../api';
-import type { RoomSnapshot } from '../api/types';
+import { formatDataSourceLead } from '../utils/data-source-label';
 
 export function RoomsPage() {
-  const [rooms, setRooms] = useState<RoomSnapshot[]>([]);
-
-  useEffect(() => {
-    void opsApiClient.listRooms().then((res) => setRooms(res.rooms));
-  }, []);
+  const { data, error, loading, retry } = useOpsQuery(() => opsApiClient.listRooms(), []);
 
   return (
-    <>
-      <h1 className="page-title">房间监控</h1>
-      <p className="page-lead">/admin/v1/rooms/* 列表占位</p>
-      <table className="data-table">
-        <caption className="sr-only">房间状态列表</caption>
-        <thead>
-          <tr>
-            <th scope="col">房间</th>
-            <th scope="col">状态</th>
-            <th scope="col">成员数</th>
-            <th scope="col">录音状态</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rooms.map((room) => (
-            <tr key={room.id}>
-              <td>{room.name}</td>
-              <td>
-                <span className="status-pill">{room.status}</span>
-              </td>
-              <td>{room.memberCount}</td>
-              <td>{room.recordingStatus}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
+    <OpsQueryStatus loading={loading} error={error} loadingLabel="加载房间列表…" onRetry={retry}>
+      {data ? (
+        <>
+          <h1 className="page-title">房间监控</h1>
+          <p className="page-lead">{formatDataSourceLead(data.dataSource)}</p>
+          <table className="data-table">
+            <caption className="sr-only">房间状态列表</caption>
+            <thead>
+              <tr>
+                <th scope="col">房间</th>
+                <th scope="col">状态</th>
+                <th scope="col">成员数</th>
+                <th scope="col">录音状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rooms.map((room) => (
+                <tr key={room.id}>
+                  <td>{room.name}</td>
+                  <td>
+                    <span className="status-pill">{room.status}</span>
+                  </td>
+                  <td>{room.memberCount}</td>
+                  <td>{room.recordingStatus}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      ) : null}
+    </OpsQueryStatus>
   );
 }

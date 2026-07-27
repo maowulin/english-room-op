@@ -1,10 +1,15 @@
 export const DEMO_DATA_LABEL = '演示数据' as const;
 
-export interface DemoMeta {
-  dataSource: 'demo';
+export type OpsDataSource = 'demo' | 'backend' | 'placeholder';
+
+export interface OpsResponseMeta {
+  dataSource: OpsDataSource;
   generatedAt: string;
   disclaimer: string;
 }
+
+/** @deprecated use OpsResponseMeta */
+export type DemoMeta = OpsResponseMeta;
 
 export interface OverviewMetrics {
   dau: number;

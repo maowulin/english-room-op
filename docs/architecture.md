@@ -21,9 +21,9 @@ english-room-op/
 ### Phase 1（本仓库，当前）
 
 - 五页只读/操作 UI 骨架：总览、稳定性、房间、评分、审计（路由 `/`、`/stability`、`/rooms`、`/scoring`、`/audit`）。
-- `OpsApiClient` 接口 + `MockOpsApiClient`（默认）+ `HttpOpsApiClient`。
+- `OpsApiClient` 接口 + `MockOpsApiClient`（默认）+ `HttpOpsApiClient`（含可注入 admin 头与 `useOpsQuery` / `OpsQueryStatus` 联调壳）。
 - 环境切换：`VITE_OPS_API_MODE=http` 且配置 `VITE_OPS_API_BASE_URL` 时选用 HTTP 适配器；否则 Mock。
-- 单元测试覆盖 Mock/HTTP 客户端与页面数据加载；`typecheck` / `lint` / `build` 可在 CI 或本地验证。
+- 单元测试覆盖 Mock/HTTP 客户端、HTTP 头注入与页面 loading/error/重试；`typecheck` / `lint` / `build` 可在 CI 或本地验证。
 
 **边界说明：** Phase 1 完成的是 **Web 到 HTTP 的客户端映射**，不承诺后端已可用、不连接真实 DAU/Sentry/房间/评分/审计数据。
 
@@ -56,6 +56,16 @@ createOpsApiClient()
 | `listAuditLog` | GET `/admin/v1/audit/events` |
 
 OpenAPI 由后端发布后为接口真相源；不兼容变更使用新版本路径，并在各仓库分别迁移。
+
+### Admin HTTP 头（联调合约，Backend 校验）
+
+| 头 | 用途 |
+| --- | --- |
+| `Authorization` | 管理员会话或 Bearer（具体格式由 Backend OpenAPI 定义） |
+| `X-Admin-MFA` | MFA 步骤完成后的证明；**Phase 2 前**仅用于 staging/本地联调 |
+| `X-Admin-Role` | RBAC 角色 hint（`viewer` / `operator` / `admin`） |
+
+运营 Web 通过 `HttpOpsApiClient` 选项或 `VITE_OPS_ADMIN_*` 环境变量注入上述头，不在源码中写入真实凭证。响应体应包含 `dataSource`（`backend` | `placeholder` | Mock 为 `demo`）供页面标注数据来源。
 
 ## 构建隔离
 

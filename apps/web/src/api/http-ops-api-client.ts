@@ -9,8 +9,10 @@ import type {
 } from './types';
 import {
   opsFetchJson,
+  type OpsHttpExtraHeadersProvider,
   type OpsHttpFetcher,
   type OpsHttpCredentials,
+  type OpsHttpHeaderProvider,
   type OpsHttpRequestConfig,
 } from './ops-http-request';
 
@@ -19,7 +21,10 @@ export type HttpOpsApiClientOptions = {
   fetcher?: OpsHttpFetcher;
   credentials?: OpsHttpCredentials;
   timeoutMs?: number;
-  getAuthorizationHeader?: () => string | Promise<string | undefined>;
+  getAuthorizationHeader?: OpsHttpHeaderProvider;
+  getAdminMfaHeader?: OpsHttpHeaderProvider;
+  getAdminRoleHeader?: OpsHttpHeaderProvider;
+  getExtraHeaders?: OpsHttpExtraHeadersProvider;
 };
 
 const ADMIN = {
@@ -47,6 +52,9 @@ export class HttpOpsApiClient implements OpsApiClient {
       credentials: options.credentials,
       timeoutMs: options.timeoutMs,
       getAuthorizationHeader: options.getAuthorizationHeader,
+      getAdminMfaHeader: options.getAdminMfaHeader,
+      getAdminRoleHeader: options.getAdminRoleHeader,
+      getExtraHeaders: options.getExtraHeaders,
     };
   }
 

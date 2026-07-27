@@ -59,16 +59,28 @@ npm run build
 
 未设置 `VITE_OPS_API_MODE`，或不为 `http`，或缺少 `VITE_OPS_API_BASE_URL` 时，使用 `MockOpsApiClient`，数据来自 `src/data/mock-ops-data.ts`。页面会展示演示数据提示，**不代表生产指标**。
 
-### HTTP 模式（联调预留）
+### HTTP 模式（本地联调壳）
 
-用于对接未来的 FastAPI 管理 API；**后端路由尚未实现**，除非自行 mock 服务，否则请求会失败。
+用于对接 FastAPI 管理 API。后端 `/admin/v1` 与 MFA/RBAC **尚未在生产落地**；本模式提供可注入请求头、统一 loading/error/重试 UI，便于与 mock 或 staging API 联调。
 
 在 `apps/web/.env.local`（勿提交）中配置：
 
 ```bash
 VITE_OPS_API_MODE=http
-VITE_OPS_API_BASE_URL=https://your-admin-api.example.com
+VITE_OPS_API_BASE_URL=http://127.0.0.1:8000
 ```
+
+可选：本地联调时由 Backend 文档约定的 admin 头（**仅写入 `.env.local`，勿提交**）：
+
+| 环境变量 | HTTP 头 | 说明 |
+| --- | --- | --- |
+| `VITE_OPS_ADMIN_AUTHORIZATION` | `Authorization` | Bearer 或 Backend 约定的会话凭证 |
+| `VITE_OPS_ADMIN_MFA` | `X-Admin-MFA` | MFA 证明（联调占位；**不代表** App/Web 已完成 MFA 流程） |
+| `VITE_OPS_ADMIN_ROLE` | `X-Admin-Role` | `viewer` / `operator` / `admin` 等 RBAC 角色 hint |
+
+`HttpOpsApiClient` 亦支持在代码中注入 `getAuthorizationHeader`、`getAdminMfaHeader`、`getAdminRoleHeader` 或通用 `getExtraHeaders`（例如 WebView handoff 完成后由运行时提供），不在仓库内硬编码 Token。
+
+成功响应时页面读取 JSON 中的 `dataSource` 字段（`backend` / `placeholder` / 联调 mock 可返回 `demo`）并展示来源说明；Mock 模式固定为 `demo` 且顶部展示演示数据横幅。
 
 `HttpOpsApiClient` 当前映射的只读/写路径（合约以 OpenAPI 为准，后端 Phase 2 实现）：
 
@@ -81,7 +93,7 @@ VITE_OPS_API_BASE_URL=https://your-admin-api.example.com
 | POST | `/admin/v1/scoring/{taskId}/retry` |
 | GET | `/admin/v1/audit/events` |
 
-HTTP 模式下使用 `credentials: 'include'`；**认证、RBAC 与 handoff 会话仍属 Phase 2**，本仓库不在文档或示例中写入 Token 或管理凭证。
+HTTP 模式下使用 `credentials: 'include'`；服务端会话、一次性 handoff 与完整 MFA 仍属 Phase 2。本地联调可通过上表环境变量或客户端注入函数附带 `Authorization`、`X-Admin-MFA`、`X-Admin-Role`，具体校验由 FastAPI 实现。
 
 ## 安全约束
 

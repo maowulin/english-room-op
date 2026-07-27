@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 
 import { mockOverviewMetrics } from '../data/mock-ops-data';
+import { isOpsHttpMode } from '../config/ops-api-mode';
 import { DemoDataBanner } from './DemoDataBanner';
 
 const navItems = [
@@ -29,12 +30,16 @@ function NavItems({ className }: { className: string }) {
 }
 
 export function AppLayout() {
+  const showDemoBanner = !isOpsHttpMode();
+
   return (
     <div className="app-shell">
-      <DemoDataBanner
-        disclaimer={mockOverviewMetrics.disclaimer}
-        generatedAt={mockOverviewMetrics.generatedAt}
-      />
+      {showDemoBanner ? (
+        <DemoDataBanner
+          disclaimer={mockOverviewMetrics.disclaimer}
+          generatedAt={mockOverviewMetrics.generatedAt}
+        />
+      ) : null}
       <aside className="sidebar" aria-label="主导航">
         <div className="sidebar__brand">English Room Ops</div>
         <nav>

@@ -11,9 +11,14 @@ export function createOpsApiClient(): OpsApiClient {
   const baseUrl = import.meta.env.VITE_OPS_API_BASE_URL ?? '';
 
   if (mode === 'http' && baseUrl) {
+    const trimEnv = (value: string | undefined) => value?.trim() || undefined;
+
     return new HttpOpsApiClient({
       baseUrl,
       credentials: 'include',
+      getAuthorizationHeader: () => trimEnv(import.meta.env.VITE_OPS_ADMIN_AUTHORIZATION),
+      getAdminMfaHeader: () => trimEnv(import.meta.env.VITE_OPS_ADMIN_MFA),
+      getAdminRoleHeader: () => trimEnv(import.meta.env.VITE_OPS_ADMIN_ROLE),
     });
   }
 

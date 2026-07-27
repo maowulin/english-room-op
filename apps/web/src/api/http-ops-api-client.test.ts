@@ -159,4 +159,24 @@ describe('HttpOpsApiClient', () => {
 
     await client.getOverviewMetrics();
   });
+
+  it('injects X-Admin-MFA, X-Admin-Role, and getExtraHeaders when configured', async () => {
+    const fetcher = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      const headers = init?.headers as Headers;
+      expect(headers.get('X-Admin-MFA')).toBe('mfa-proof');
+      expect(headers.get('X-Admin-Role')).toBe('operator');
+      expect(headers.get('X-Trace-Local')).toBe('dev');
+      return jsonResponse(200, { rooms: [] });
+    });
+
+    const client = new HttpOpsApiClient({
+      baseUrl: 'https://ops.example',
+      fetcher,
+      getAdminMfaHeader: () => 'mfa-proof',
+      getAdminRoleHeader: () => 'operator',
+      getExtraHeaders: () => ({ 'X-Trace-Local': 'dev' }),
+    });
+
+    await client.listRooms();
+  });
 });
