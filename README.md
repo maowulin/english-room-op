@@ -70,15 +70,15 @@ VITE_OPS_API_MODE=http
 VITE_OPS_API_BASE_URL=http://127.0.0.1:8000
 ```
 
-可选：本地联调时由 Backend 文档约定的 admin 头（**仅写入 `.env.local`，勿提交**）：
+可选：**仅本地 Vite DEV**（`.env.local`，勿提交）由 Backend 文档约定的 admin 头；生产构建会忽略这些变量，请改用服务端会话 Cookie、`credentials: include` 或 handoff 后调用 `setOpsRuntimeAuth`：
 
 | 环境变量 | HTTP 头 | 说明 |
 | --- | --- | --- |
-| `VITE_OPS_ADMIN_AUTHORIZATION` | `Authorization` | Bearer 或 Backend 约定的会话凭证 |
-| `VITE_OPS_ADMIN_MFA` | `X-Admin-MFA` | MFA 证明（联调占位；**不代表** App/Web 已完成 MFA 流程） |
-| `VITE_OPS_ADMIN_ROLE` | `X-Admin-Role` | `viewer` / `operator` / `admin` 等 RBAC 角色 hint |
+| `VITE_OPS_ADMIN_AUTHORIZATION` | `Authorization` | **仅 local dev**；Bearer 或 Backend 约定的会话凭证 |
+| `VITE_OPS_ADMIN_MFA` | `X-Admin-MFA` | **仅 local dev**；MFA 证明（联调占位；**不代表** App/Web 已完成 MFA 流程） |
+| `VITE_OPS_ADMIN_ROLE` | `X-Admin-Role` | **仅 local dev**；`viewer` / `operator` / `admin` 等 RBAC 角色 hint |
 
-`HttpOpsApiClient` 亦支持在代码中注入 `getAuthorizationHeader`、`getAdminMfaHeader`、`getAdminRoleHeader` 或通用 `getExtraHeaders`（例如 WebView handoff 完成后由运行时提供），不在仓库内硬编码 Token。
+`setOpsRuntimeAuth` / `clearOpsRuntimeAuth`（内存桥，无 localStorage）供 WebView handoff 或登录壳注入当前 admin 头；`HttpOpsApiClient` 亦支持在代码中注入 `getAuthorizationHeader`、`getAdminMfaHeader`、`getAdminRoleHeader` 或通用 `getExtraHeaders`，不在仓库内硬编码 Token。
 
 成功响应时页面读取 JSON 中的 `dataSource` 字段（`backend` / `placeholder` / 联调 mock 可返回 `demo`）并展示来源说明；Mock 模式固定为 `demo` 且顶部展示演示数据横幅。
 
@@ -93,7 +93,7 @@ VITE_OPS_API_BASE_URL=http://127.0.0.1:8000
 | POST | `/admin/v1/scoring/{taskId}/retry` |
 | GET | `/admin/v1/audit/events` |
 
-HTTP 模式下使用 `credentials: 'include'`；服务端会话、一次性 handoff 与完整 MFA 仍属 Phase 2。本地联调可通过上表环境变量或客户端注入函数附带 `Authorization`、`X-Admin-MFA`、`X-Admin-Role`，具体校验由 FastAPI 实现。
+HTTP 模式下使用 `credentials: 'include'`；生产认证依赖 FastAPI 会话 Cookie 与 CORS 凭据，或 WebView handoff 后 `setOpsRuntimeAuth`。完整 MFA 与一次性 handoff 仍属 Phase 2。本地 DEV 可通过上表环境变量附带 admin 头，具体校验由 FastAPI 实现。
 
 ## 安全约束
 
