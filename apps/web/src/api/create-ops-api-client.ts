@@ -38,6 +38,10 @@ export function createOpsApiClient(): OpsApiClient {
         getOpsRuntimeAdminRole,
         () => getDevOpsAdminHeaders().adminRole,
       ),
+      getExtraHeaders: () => {
+        const token = getDevOpsAdminHeaders().opsAdminToken;
+        return token ? { 'X-Ops-Admin-Token': token } : undefined;
+      },
     });
   }
 

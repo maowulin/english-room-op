@@ -41,7 +41,7 @@ describe('OverviewPage', () => {
     render(<OverviewPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('forbidden');
+      expect(screen.getByRole('alert')).toHaveTextContent('接口暂不可用');
     });
 
     screen.getByRole('button', { name: '重试' }).click();

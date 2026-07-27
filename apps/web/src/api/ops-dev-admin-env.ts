@@ -3,6 +3,7 @@ export type OpsDevAdminEnvSource = {
   authorization?: string;
   adminMfa?: string;
   adminRole?: string;
+  opsAdminToken?: string;
 };
 
 function trimOptional(value: string | undefined): string | undefined {
@@ -12,7 +13,7 @@ function trimOptional(value: string | undefined): string | undefined {
 
 export function readDevOpsAdminHeaders(
   source: OpsDevAdminEnvSource,
-): Pick<OpsDevAdminEnvSource, 'authorization' | 'adminMfa' | 'adminRole'> {
+): Pick<OpsDevAdminEnvSource, 'authorization' | 'adminMfa' | 'adminRole' | 'opsAdminToken'> {
   if (!source.dev) {
     return {};
   }
@@ -21,6 +22,7 @@ export function readDevOpsAdminHeaders(
     authorization: trimOptional(source.authorization),
     adminMfa: trimOptional(source.adminMfa),
     adminRole: trimOptional(source.adminRole),
+    opsAdminToken: trimOptional(source.opsAdminToken),
   };
 }
 
@@ -35,5 +37,6 @@ export function getDevOpsAdminHeaders(): ReturnType<typeof readDevOpsAdminHeader
     authorization: import.meta.env.VITE_OPS_ADMIN_AUTHORIZATION,
     adminMfa: import.meta.env.VITE_OPS_ADMIN_MFA,
     adminRole: import.meta.env.VITE_OPS_ADMIN_ROLE,
+    opsAdminToken: import.meta.env.VITE_OPS_ADMIN_TOKEN,
   });
 }

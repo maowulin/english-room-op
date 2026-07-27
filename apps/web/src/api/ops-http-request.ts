@@ -22,6 +22,8 @@ export const OPS_HTTP_PROTECTED_HEADER_NAMES = new Set([
   'x-admin-role',
 ]);
 
+export const OPS_GENERIC_ERROR_MESSAGE = '接口暂不可用';
+
 export function applyExtraOpsHttpHeaders(
   headers: Headers,
   extra: Record<string, string>,
@@ -114,6 +116,7 @@ export async function opsFetchJson<T>(
   method: 'GET' | 'POST',
   path: string,
   body?: unknown,
+  additionalHeaders?: Record<string, string>,
 ): Promise<T> {
   const assertAllowed = config.assertBaseUrlAllowed ?? assertOpsApiBaseUrlAllowedFromEnv;
   assertAllowed(config.baseUrl);
@@ -147,6 +150,9 @@ export async function opsFetchJson<T>(
   const extra = config.getExtraHeaders ? await config.getExtraHeaders() : undefined;
   if (extra) {
     applyExtraOpsHttpHeaders(headers, extra);
+  }
+  if (additionalHeaders) {
+    applyExtraOpsHttpHeaders(headers, additionalHeaders);
   }
 
   let response: Response;

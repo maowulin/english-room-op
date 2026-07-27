@@ -38,7 +38,7 @@ describe('StabilityPage', () => {
     render(<StabilityPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('GET failed');
+      expect(screen.getByRole('alert')).toHaveTextContent('接口暂不可用');
     });
     expect(screen.queryByText('加载稳定性数据…')).toBeNull();
   });

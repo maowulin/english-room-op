@@ -9,6 +9,10 @@ import type { OpsApiClient, RetryScoringResult } from './types';
 
 /** Mock adapter — reads from `src/data/mock-ops-data.ts` only. */
 export class MockOpsApiClient implements OpsApiClient {
+  async getHealth() {
+    return { status: 'ok' as const, generatedAt: new Date().toISOString() };
+  }
+
   async getOverviewMetrics() {
     return { ...mockOverviewMetrics };
   }

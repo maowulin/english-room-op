@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { OPS_GENERIC_ERROR_MESSAGE } from '../api/ops-http-request';
+
 export type OpsQueryState<T> = {
   data: T | null;
   error: string | null;
@@ -29,10 +31,12 @@ export function useOpsQuery<T>(load: () => Promise<T>, deps: readonly unknown[] 
           setLoading(false);
         }
       })
-      .catch((err: unknown) => {
+      .catch(() => {
         if (!cancelled) {
           setData(null);
-          setError(err instanceof Error ? err.message : '加载失败');
+          // Backend details may contain HTML, stack traces, or sensitive request data.
+          // Keep the page-level error intentionally generic; diagnostics stay in devtools/server logs.
+          setError(OPS_GENERIC_ERROR_MESSAGE);
           setLoading(false);
         }
       });

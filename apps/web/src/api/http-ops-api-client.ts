@@ -6,7 +6,7 @@ import {
   mapAdminScoringWire,
   mapAdminStabilityWire,
 } from './ops-admin-wire-mappers';
-import type { OpsApiClient, RetryScoringResult } from './types';
+import type { OpsApiClient, OpsDateRange, OpsHealthResponse, RetryScoringResult } from './types';
 import {
   opsFetchJson,
   type OpsHttpExtraHeadersProvider,
@@ -29,6 +29,7 @@ export type HttpOpsApiClientOptions = {
 };
 
 const ADMIN = {
+  health: '/health',
   metricsOverview: '/admin/v1/metrics/overview',
   metricsStability: '/admin/v1/metrics/stability',
   rooms: '/admin/v1/rooms',
@@ -36,6 +37,27 @@ const ADMIN = {
   auditEvents: '/admin/v1/audit/events',
   scoringRetry: (taskId: string) => `/admin/v1/scoring/${encodeURIComponent(taskId)}/retry`,
 } as const;
+
+function withDateRange(path: string, range?: OpsDateRange): string {
+  if (!range?.dateFrom && !range?.dateTo) {
+    return path;
+  }
+  const params = new URLSearchParams();
+  if (range.dateFrom) params.set('date_from', range.dateFrom);
+  if (range.dateTo) params.set('date_to', range.dateTo);
+  return `${path}?${params.toString()}`;
+}
+
+function generateUuidV4(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  const bytes = Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 /**
  * Production HTTP adapter — maps FastAPI `/admin/v1/*` snake_case wire JSON to UI camelCase types.
@@ -61,13 +83,22 @@ export class HttpOpsApiClient implements OpsApiClient {
     };
   }
 
-  async getOverviewMetrics() {
-    const wire = await opsFetchJson<unknown>(this.request, 'GET', ADMIN.metricsOverview);
+  async getHealth(): Promise<OpsHealthResponse> {
+    const wire = await opsFetchJson<unknown>(this.request, 'GET', ADMIN.health);
+    const record = wire && typeof wire === 'object' ? (wire as Record<string, unknown>) : {};
+    return {
+      status: record.status === 'ok' ? 'ok' : 'unknown',
+      generatedAt: typeof record.generated_at === 'string' ? record.generated_at : new Date().toISOString(),
+    };
+  }
+
+  async getOverviewMetrics(range?: OpsDateRange) {
+    const wire = await opsFetchJson<unknown>(this.request, 'GET', withDateRange(ADMIN.metricsOverview, range));
     return mapAdminOverviewWire(wire);
   }
 
-  async getStabilitySummary() {
-    const wire = await opsFetchJson<unknown>(this.request, 'GET', ADMIN.metricsStability);
+  async getStabilitySummary(range?: OpsDateRange) {
+    const wire = await opsFetchJson<unknown>(this.request, 'GET', withDateRange(ADMIN.metricsStability, range));
     return mapAdminStabilityWire(wire);
   }
 
@@ -82,7 +113,13 @@ export class HttpOpsApiClient implements OpsApiClient {
   }
 
   async retryScoringTask(taskId: string): Promise<RetryScoringResult> {
-    const wire = await opsFetchJson<unknown>(this.request, 'POST', ADMIN.scoringRetry(taskId));
+    const wire = await opsFetchJson<unknown>(
+      this.request,
+      'POST',
+      ADMIN.scoringRetry(taskId),
+      undefined,
+      { 'Idempotency-Key': generateUuidV4() },
+    );
     return mapAdminScoringRetryWire(wire, taskId);
   }
 

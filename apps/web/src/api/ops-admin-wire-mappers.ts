@@ -1,20 +1,25 @@
 import type {
+  AuditLogEntry,
   AuditLogResponseWithMeta,
   OpsDataSource,
   OverviewMetricsResponse,
   RetryScoringResult,
   RoomLifecycleStatus,
+  RoomSnapshot,
   RoomsListResponseWithMeta,
+  ScoringTask,
   ScoringTaskStatus,
   ScoringTasksResponseWithMeta,
   StabilitySummaryResponse,
 } from './types';
 
+const DEFAULT_DISCLAIMER = '数据来自 FastAPI /admin/v1。';
 const OVERVIEW_BACKEND_DISCLAIMER =
   '当前后端仅提供基础事件聚合（DAU 等）；留存与转化指标尚未接入，展示为 0。';
-
 const STABILITY_BACKEND_DISCLAIMER =
-  '稳定性摘要来自后端 issues 占位数据；受影响用户数尚未接入 Sentry 代理。';
+  '稳定性摘要来自后端事件聚合；Issue 与设备明细尚未接入 Sentry 代理。';
+
+type WireEnvelope = { meta: Record<string, unknown>; data: Record<string, unknown> };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -30,12 +35,33 @@ function asNumber(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function unwrap(body: unknown): WireEnvelope {
+  const root = asRecord(body) ?? {};
+  const envelopeData = asRecord(root.data);
+  const envelopeMeta = asRecord(root.meta);
+  return envelopeData && envelopeMeta
+    ? { meta: envelopeMeta, data: envelopeData }
+    : { meta: root, data: root };
+}
+
 function mapDataSource(raw: unknown): OpsDataSource {
   const value = asString(raw);
-  if (value === 'backend' || value === 'placeholder') {
+  if (value === 'backend' || value === 'placeholder' || value === 'demo') {
     return value;
   }
   return 'backend';
+}
+
+function mapMeta(meta: Record<string, unknown>, fallback = DEFAULT_DISCLAIMER) {
+  return {
+    dataSource: mapDataSource(meta.data_source ?? meta.dataSource),
+    generatedAt: asString(meta.generated_at ?? meta.generatedAt) ?? new Date().toISOString(),
+    disclaimer: asString(meta.disclaimer ?? meta.note) ?? fallback,
+  } as const;
 }
 
 function maskPlayerLabel(playerId: unknown): string {
@@ -45,29 +71,40 @@ function maskPlayerLabel(playerId: unknown): string {
 }
 
 function mapRoomStatus(raw: unknown): RoomLifecycleStatus {
-  const status = asString(raw)?.toLowerCase();
-  switch (status) {
+  switch (asString(raw)?.toLowerCase()) {
     case 'lobby':
+    case 'waiting':
       return 'waiting';
     case 'live':
+    case 'active':
       return 'active';
     case 'closing':
       return 'closing';
     case 'ended':
       return 'ended';
-    case 'waiting':
-    case 'active':
-      return status;
     default:
       return 'waiting';
   }
 }
 
+function mapRecordingStatus(raw: unknown): RoomSnapshotRecordingStatus {
+  switch (asString(raw)?.toLowerCase()) {
+    case 'recording':
+    case 'processing':
+    case 'failed':
+      return raw as RoomSnapshotRecordingStatus;
+    default:
+      return 'idle';
+  }
+}
+
+type RoomSnapshotRecordingStatus = 'idle' | 'recording' | 'processing' | 'failed';
+
 function mapScoringStatus(raw: unknown): ScoringTaskStatus {
-  const status = asString(raw)?.toLowerCase();
-  switch (status) {
+  switch (asString(raw)?.toLowerCase()) {
     case 'queued':
     case 'pending':
+    case 'waiting':
       return 'queued';
     case 'running':
     case 'in_progress':
@@ -89,165 +126,247 @@ function mapScoringStatus(raw: unknown): ScoringTaskStatus {
 
 function mapAuditResult(raw: unknown): 'success' | 'failure' {
   const value = asString(raw)?.toLowerCase();
-  if (value === 'failure' || value === 'failed' || value === 'error') {
-    return 'failure';
-  }
-  return 'success';
+  return value === 'failure' || value === 'failed' || value === 'error' ? 'failure' : 'success';
 }
 
-type StabilityIssueWire = {
-  issue_id?: string;
-  id?: string;
-  title?: string;
-  count?: number;
-  date?: string;
-};
-
-function parseStabilityIssues(raw: unknown): StabilityIssueWire[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-  return raw.filter((item) => item && typeof item === 'object') as StabilityIssueWire[];
+function mapOverviewTrend(raw: unknown): Array<{ day: string; count: number }> {
+  return asArray(raw).flatMap((item) => {
+    const row = asRecord(item);
+    const day = asString(row?.day ?? row?.date);
+    return day ? [{ day, count: asNumber(row?.count) }] : [];
+  });
 }
 
 export function mapAdminOverviewWire(body: unknown): OverviewMetricsResponse {
-  const record = asRecord(body) ?? {};
+  const { meta, data } = unwrap(body);
+  const isEnvelope = asRecord(body)?.data !== undefined;
+  const baseMeta = mapMeta(meta, OVERVIEW_BACKEND_DISCLAIMER);
+  const activeTrend = mapOverviewTrend(data.active_trend ?? data.trend);
+  const heatmap = asArray(data.retention_heatmap).flatMap((item) => {
+    const row = asRecord(item);
+    if (!row) return [];
+    return [
+      {
+        label: asString(row.label ?? row.week) ?? '',
+        d1: asNumber(row.d1),
+        d7: asNumber(row.d7),
+        d30: asNumber(row.d30),
+      },
+    ];
+  });
+  const funnel = asArray(data.funnel).flatMap((item) => {
+    const row = asRecord(item);
+    if (!row) return [];
+    return [
+      {
+        label: asString(row.label ?? row.name) ?? '',
+        count: asNumber(row.count),
+        rate: asNumber(row.rate),
+      },
+    ];
+  });
+
   return {
-    dataSource: mapDataSource(record.data_source),
-    generatedAt: asString(record.generated_at) ?? new Date().toISOString(),
-    disclaimer: OVERVIEW_BACKEND_DISCLAIMER,
-    dau: asNumber(record.unique_user_ids),
-    dauDeltaPercent: 0,
-    d1RetentionRate: 0,
-    d7RetentionRate: 0,
-    roomConversionRate: 0,
-    scoringCompletionRate: 0,
+    ...baseMeta,
+    dateFrom: asString(data.date_from) ?? '',
+    dateTo: asString(data.date_to) ?? '',
+    dau: asNumber(data.dau ?? data.unique_user_ids),
+    sessionCount: asNumber(data.session_count),
+    roomStartCount: asNumber(data.room_start_count),
+    roomCompletionRate: asNumber(data.room_completion_rate),
+    scoreReportViewRate: asNumber(data.score_report_view_rate),
+    dauDeltaPercent: asNumber(data.dau_delta_percent),
+    d1RetentionRate: asNumber(data.d1_retention),
+    d7RetentionRate: asNumber(data.d7_retention),
+    roomConversionRate: data.room_conversion_rate !== undefined
+      ? asNumber(data.room_conversion_rate)
+      : asNumber(data.room_completion_rate),
+    scoringCompletionRate: asNumber(data.scoring_completion_rate),
+    activeTrend,
+    retentionHeatmap: heatmap,
+    funnel,
+    ...(isEnvelope ? {} : { disclaimer: baseMeta.disclaimer }),
   };
 }
 
 export function mapAdminStabilityWire(body: unknown): StabilitySummaryResponse {
-  const record = asRecord(body) ?? {};
-  const issues = parseStabilityIssues(record.issues);
-  const errorTrend = issues
-    .filter((issue) => asString(issue.date))
-    .map((issue) => ({
-      date: asString(issue.date)!,
-      count: asNumber(issue.count),
-    }));
-  const topIssues = issues.map((issue, index) => ({
-    id: asString(issue.issue_id) ?? asString(issue.id) ?? `issue-${index + 1}`,
-    title: asString(issue.title) ?? 'Unknown issue',
-    count: asNumber(issue.count),
+  const { meta, data } = unwrap(body);
+  const trend = mapOverviewTrend(data.trend ?? data.error_trend ?? asArray(data.issues).map((item) => {
+    const row = asRecord(item);
+    return { day: asString(row?.date) ?? '', count: asNumber(row?.count) };
   }));
+  const issues = asArray(data.issues).flatMap((item, index) => {
+    const row = asRecord(item);
+    return row
+      ? [
+          {
+            id: asString(row.issue_id ?? row.id) ?? `issue-${index + 1}`,
+            title: asString(row.title) ?? 'Unknown issue',
+            count: asNumber(row.count),
+          },
+        ]
+      : [];
+  });
+  const appOpened = asRecord(data.app_opened) ?? {};
+  const rtc = asRecord(data.rtc_connection_changed) ?? {};
+  const recording = asRecord(data.recording_status_changed) ?? {};
+  const versionHealth = asArray(data.version_health).flatMap((item) => {
+    const row = asRecord(item);
+    return row
+      ? [{ label: asString(row.label ?? row.version) ?? '', value: asNumber(row.value ?? row.rate), color: asString(row.color) }]
+      : [];
+  });
+  const breakdown = (raw: unknown) =>
+    asArray(raw).flatMap((item) => {
+      const row = asRecord(item);
+      return row ? [{ label: asString(row.label ?? row.name) ?? '', value: asNumber(row.value ?? row.rate) }] : [];
+    });
 
   return {
-    dataSource: mapDataSource(record.data_source),
-    generatedAt: asString(record.generated_at) ?? new Date().toISOString(),
-    disclaimer: asString(record.note) ?? STABILITY_BACKEND_DISCLAIMER,
-    errorTrend,
-    affectedUsersPlaceholder: 0,
-    topIssues,
+    ...mapMeta(meta, STABILITY_BACKEND_DISCLAIMER),
+    errorTrend: trend.map((point) => ({ date: point.day, count: point.count })),
+    affectedUsersPlaceholder: asNumber(data.affected_users),
+    topIssues: issues,
+    appOpenedCount: asNumber(appOpened.count),
+    appOpenedFailureRate: asNumber(appOpened.failure_rate),
+    rtcConnectionCount: asNumber(rtc.count),
+    rtcFailureRate: asNumber(rtc.failure_rate),
+    recordingStatusCount: asNumber(recording.count),
+    recordingFailureRate: asNumber(recording.failure_rate),
+    versionHealth,
+    deviceBreakdown: breakdown(data.device_breakdown),
+    networkBreakdown: breakdown(data.network_breakdown),
   };
 }
 
 export function mapAdminRoomsWire(body: unknown): RoomsListResponseWithMeta {
-  const record = asRecord(body) ?? {};
-  const items = Array.isArray(record.items) ? record.items : [];
-  const generatedAt = asString(record.generated_at) ?? new Date().toISOString();
-
-  const rooms = items.map((item) => {
-    const row = asRecord(item) ?? {};
-    return {
-      id: asString(row.room_id) ?? '',
-      name: asString(row.title) ?? 'Untitled room',
-      status: mapRoomStatus(row.status),
-      memberCount: asNumber(row.member_count),
-      recordingStatus: 'idle' as const,
+  const { meta, data } = unwrap(body);
+  const rooms = asArray(data.items).flatMap((item) => {
+    const row = asRecord(item);
+    if (!row) return [];
+    const members = asArray(row.members).flatMap((member) => {
+      const memberRow = asRecord(member);
+      return memberRow
+        ? [
+            {
+              id: asString(memberRow.player_id ?? memberRow.id) ?? '',
+              label: maskPlayerLabel(memberRow.player_id ?? memberRow.id),
+              role: asString(memberRow.role),
+              speaking: memberRow.speaking === true,
+              muted: memberRow.muted === true,
+              network: asString(memberRow.network),
+            },
+          ]
+        : [];
+    });
+    const lifecycle = asArray(row.lifecycle).flatMap((event) => {
+      const eventRow = asRecord(event);
+      return eventRow
+        ? [{ label: asString(eventRow.label ?? eventRow.state) ?? '', occurredAt: asString(eventRow.occurred_at), state: asString(eventRow.state) ?? '' }]
+        : [];
+    });
+    const room: RoomSnapshot = {
+        id: asString(row.room_id ?? row.id) ?? '',
+        name: asString(row.title ?? row.name) ?? 'Untitled room',
+        status: mapRoomStatus(row.status ?? row.state),
+        memberCount: asNumber(row.member_count ?? row.memberCount),
+        recordingStatus: mapRecordingStatus(row.recording_status),
     };
+    const ownerLabel = asString(row.owner_label);
+    const createdAt = asString(row.created_at);
+    const trtcStatus = asString(row.trtc_status);
+    const scoringStatus = asString(row.scoring_status);
+    if (ownerLabel) room.ownerLabel = ownerLabel;
+    if (createdAt) room.createdAt = createdAt;
+    if (typeof row.duration_seconds === 'number') room.durationSeconds = row.duration_seconds;
+    if (trtcStatus) room.trtcStatus = trtcStatus;
+    if (scoringStatus) room.scoringStatus = scoringStatus;
+    if (Array.isArray(row.members)) room.members = members;
+    if (Array.isArray(row.lifecycle)) room.lifecycle = lifecycle;
+    return [room];
   });
-
   return {
-    dataSource: mapDataSource(record.data_source),
-    generatedAt,
-    disclaimer: '房间列表来自 FastAPI /admin/v1/rooms；录制状态尚未在 admin 响应中暴露。',
+    ...mapMeta(meta),
     rooms,
   };
 }
 
 export function mapAdminScoringWire(body: unknown): ScoringTasksResponseWithMeta {
-  const record = asRecord(body) ?? {};
-  const items = Array.isArray(record.items) ? record.items : [];
-  const generatedAt = asString(record.generated_at) ?? new Date().toISOString();
-
-  const tasks = items.map((item) => {
-    const row = asRecord(item) ?? {};
-    const status = mapScoringStatus(row.status);
+  const { meta, data } = unwrap(body);
+  const tasks = asArray(data.items).flatMap((item) => {
+    const row = asRecord(item);
+    if (!row) return [];
+    const status = mapScoringStatus(row.state ?? row.status);
     const attemptCount = asNumber(row.attempt_count);
-    const retryAllowed =
-      status === 'retryable' || (status === 'failed' && attemptCount > 0);
-    return {
-      id: asString(row.score_job_id) ?? '',
-      playerLabel: maskPlayerLabel(row.player_id),
-      status,
-      failureReason: status === 'failed' || status === 'retryable' ? 'Scoring failed' : null,
-      retryAllowed,
-    };
+    return [
+      {
+        id: asString(row.score_job_id ?? row.id) ?? '',
+        playerLabel: maskPlayerLabel(row.player_id),
+        status,
+        failureReason: asString(row.failure_reason) ?? (status === 'failed' || status === 'retryable' ? '评分暂未成功' : null),
+        retryAllowed: status === 'retryable' || status === 'failed' || attemptCount > 0,
+        createdAt: asString(row.created_at),
+        roomId: asString(row.room_id),
+        audioAssetId: asString(row.audio_asset_id),
+        execution: asString(row.execution) as ScoringTask['execution'],
+      },
+    ];
   });
-
   return {
-    dataSource: mapDataSource(record.data_source),
-    generatedAt,
-    disclaimer: '评分任务来自 FastAPI /admin/v1/scoring；玩家仅显示脱敏标签。',
+    ...mapMeta(meta),
     tasks,
   };
 }
 
 export function mapAdminAuditWire(body: unknown): AuditLogResponseWithMeta {
-  const record = asRecord(body) ?? {};
-  const items = Array.isArray(record.items) ? record.items : [];
-  const generatedAt = asString(record.generated_at) ?? new Date().toISOString();
-
-  const entries = items.map((item, index) => {
-    const row = asRecord(item) ?? {};
+  const { meta, data } = unwrap(body);
+  const generatedAt = asString(meta.generated_at ?? meta.generatedAt) ?? new Date().toISOString();
+  const entries = asArray(data.items).flatMap((item, index) => {
+    const row = asRecord(item);
+    if (!row) return [];
     const occurredAt = asString(row.occurred_at) ?? generatedAt;
     const action = asString(row.action) ?? '';
-    const target = asString(row.target) ?? '';
-    return {
-      id: `${occurredAt}-${index}-${action}`,
-      actor: asString(row.actor_role) ?? 'unknown',
-      action,
-      target,
-      result: mapAuditResult(row.result),
-      occurredAt,
-    };
+    const details = asRecord(row.details) ?? undefined;
+    const result = mapAuditResult(row.result ?? details?.result);
+    const riskValue = asString(row.risk ?? details?.risk)?.toLowerCase();
+    const risk: AuditLogEntry['risk'] = riskValue === 'high' || riskValue === 'medium' ? riskValue : 'low';
+    return [
+      {
+        id: asString(row.id) ?? `${occurredAt}-${index}-${action}`,
+        actor: asString(row.actor_role ?? row.actor) ?? 'unknown',
+        action,
+        target: asString(row.target ?? row.score_job_id) ?? '',
+        result,
+        occurredAt,
+        requestId: asString(row.request_id),
+        scoreJobId: asString(row.score_job_id),
+        details,
+        risk,
+      },
+    ];
   });
-
   return {
-    dataSource: mapDataSource(record.data_source),
-    generatedAt,
-    disclaimer: '审计日志仅展示 actor 角色，不包含管理员身份标识。',
+    ...mapMeta(meta),
     entries,
   };
 }
 
-export function mapAdminScoringRetryWire(
-  body: unknown,
-  requestedTaskId: string,
-): RetryScoringResult {
-  const record = asRecord(body);
-  const taskId =
-    asString(record?.score_job_id) ??
-    asString(record?.task_id) ??
-    asString(record?.taskId) ??
-    requestedTaskId;
-  const message =
-    asString(record?.message) ??
-    asString(record?.detail) ??
-    'Retry request accepted by backend.';
+export function mapAdminScoringRetryWire(body: unknown, requestedTaskId: string): RetryScoringResult {
+  const root = asRecord(body);
+  const envelopeData = asRecord(root?.data);
+  if (envelopeData) {
+    const taskId = asString(envelopeData.score_job_id) ?? requestedTaskId;
+    const requestId = asString(envelopeData.request_id) ?? '';
+    return {
+      taskId,
+      status: 'pending',
+      execution: 'not_started',
+      requestId,
+      message: '本地占位：重试请求已提交，评分尚未启动。',
+    };
+  }
 
-  return {
-    taskId,
-    status: 'mock_accepted',
-    message,
-  };
+  const taskId = asString(root?.score_job_id ?? root?.task_id ?? root?.taskId) ?? requestedTaskId;
+  const message = asString(root?.message) ?? '演示模式：重试请求已接受。';
+  return { taskId, status: 'mock_accepted', message };
 }
