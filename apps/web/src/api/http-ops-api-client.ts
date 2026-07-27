@@ -49,7 +49,7 @@ export class HttpOpsApiClient implements OpsApiClient {
 
     this.request = {
       baseUrl: options.baseUrl,
-      fetcher: options.fetcher ?? fetch,
+      fetcher: options.fetcher ?? globalThis.fetch.bind(globalThis),
       credentials: options.credentials,
       timeoutMs: options.timeoutMs,
       getAuthorizationHeader: options.getAuthorizationHeader,

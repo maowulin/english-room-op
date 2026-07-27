@@ -223,4 +223,45 @@ describe('HttpOpsApiClient', () => {
 
     await client.listRooms();
   });
+
+  it('uses globalThis-bound default fetcher so detached invocation succeeds', async () => {
+    const originalFetch = globalThis.fetch;
+    const strictFetch = function (this: unknown, input: RequestInfo | URL) {
+      if (this !== globalThis) {
+        throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation");
+      }
+      expect(String(input)).toBe('https://ops.example/admin/v1/metrics/overview');
+      return jsonResponse(200, overviewWire);
+    };
+
+    globalThis.fetch = strictFetch as unknown as typeof fetch;
+
+    try {
+      const client = new HttpOpsApiClient({ baseUrl: 'https://ops.example' });
+      const metrics = await client.getOverviewMetrics();
+      expect(metrics.dau).toBe(100);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('documents bare fetch fails under strict Window receiver check', () => {
+    const originalFetch = globalThis.fetch;
+    const strictFetch = function (this: unknown) {
+      if (this !== globalThis) {
+        throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation");
+      }
+      return jsonResponse(200, overviewWire);
+    };
+
+    globalThis.fetch = strictFetch as unknown as typeof fetch;
+
+    try {
+      const bareFetcher = globalThis.fetch;
+      expect(() => bareFetcher('https://ops.example/')).toThrow(/Illegal invocation/);
+      expect(globalThis.fetch.bind(globalThis)('https://ops.example/')).toBeInstanceOf(Response);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
