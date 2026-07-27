@@ -70,6 +70,8 @@ VITE_OPS_API_MODE=http
 VITE_OPS_API_BASE_URL=http://127.0.0.1:8000
 ```
 
+生产或指向非 `localhost` / `127.0.0.1` 的 HTTPS 部署还必须配置 **`VITE_OPS_API_ALLOWED_ORIGINS`**（逗号分隔的 origin，例如 `https://api.example.com`）。`HttpOpsApiClient` 在发请求前会校验 base URL：**配置缺失或 origin 不在 allowlist 时 fail closed，不会发出携带 Cookie / Authorization 的请求**。本地 Vite DEV 对 `localhost` / `127.0.0.1` 联调免 allowlist；生产构建仅允许 HTTPS 且必须在 allowlist 内。
+
 可选：**仅本地 Vite DEV**（`.env.local`，勿提交）由 Backend 文档约定的 admin 头；生产构建会忽略这些变量，请改用服务端会话 Cookie、`credentials: include` 或 handoff 后调用 `setOpsRuntimeAuth`：
 
 | 环境变量 | HTTP 头 | 说明 |
@@ -78,7 +80,7 @@ VITE_OPS_API_BASE_URL=http://127.0.0.1:8000
 | `VITE_OPS_ADMIN_MFA` | `X-Admin-MFA` | **仅 local dev**；MFA 证明（联调占位；**不代表** App/Web 已完成 MFA 流程） |
 | `VITE_OPS_ADMIN_ROLE` | `X-Admin-Role` | **仅 local dev**；`viewer` / `operator` / `admin` 等 RBAC 角色 hint |
 
-`setOpsRuntimeAuth` / `clearOpsRuntimeAuth`（内存桥，无 localStorage）供 WebView handoff 或登录壳注入当前 admin 头；`HttpOpsApiClient` 亦支持在代码中注入 `getAuthorizationHeader`、`getAdminMfaHeader`、`getAdminRoleHeader` 或通用 `getExtraHeaders`，不在仓库内硬编码 Token。
+`setOpsRuntimeAuth` / `clearOpsRuntimeAuth`（内存桥，无 localStorage）供 WebView handoff 或登录壳注入当前 admin 头；可选 `expiresAt`（毫秒时间戳）到期后 getter 自动清空，**不替代**服务端 HttpOnly Cookie / Backend session 校验。`HttpOpsApiClient` 亦支持在代码中注入 `getAuthorizationHeader`、`getAdminMfaHeader`、`getAdminRoleHeader` 或通用 `getExtraHeaders`（不可覆盖 `Authorization`、`Cookie`、`X-Admin-MFA`、`X-Admin-Role`），不在仓库内硬编码 Token。
 
 成功响应时页面读取 JSON 中的 `dataSource` 字段（`backend` / `placeholder` / 联调 mock 可返回 `demo`）并展示来源说明；Mock 模式固定为 `demo` 且顶部展示演示数据横幅。
 

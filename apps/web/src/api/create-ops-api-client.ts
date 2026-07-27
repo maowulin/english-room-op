@@ -1,3 +1,4 @@
+import { assertOpsApiBaseUrlAllowedFromEnv } from './ops-api-base-url-policy';
 import { getDevOpsAdminHeaders } from './ops-dev-admin-env';
 import {
   getOpsRuntimeAdminMfa,
@@ -20,6 +21,8 @@ export function createOpsApiClient(): OpsApiClient {
   const baseUrl = import.meta.env.VITE_OPS_API_BASE_URL ?? '';
 
   if (mode === 'http' && baseUrl) {
+    assertOpsApiBaseUrlAllowedFromEnv(baseUrl);
+
     return new HttpOpsApiClient({
       baseUrl,
       credentials: 'include',

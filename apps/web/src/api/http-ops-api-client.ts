@@ -25,6 +25,7 @@ export type HttpOpsApiClientOptions = {
   getAdminMfaHeader?: OpsHttpHeaderProvider;
   getAdminRoleHeader?: OpsHttpHeaderProvider;
   getExtraHeaders?: OpsHttpExtraHeadersProvider;
+  assertBaseUrlAllowed?: (baseUrl: string) => void;
 };
 
 const ADMIN = {
@@ -56,6 +57,7 @@ export class HttpOpsApiClient implements OpsApiClient {
       getAdminMfaHeader: options.getAdminMfaHeader,
       getAdminRoleHeader: options.getAdminRoleHeader,
       getExtraHeaders: options.getExtraHeaders,
+      assertBaseUrlAllowed: options.assertBaseUrlAllowed,
     };
   }
 

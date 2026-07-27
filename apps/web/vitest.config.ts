@@ -5,6 +5,9 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'node',
+    env: {
+      VITE_OPS_API_ALLOWED_ORIGINS: 'https://ops.example',
+    },
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
 });

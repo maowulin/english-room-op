@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { OpsApiBaseUrlBlockedError } from './ops-api-base-url-policy';
 import { clearOpsRuntimeAuth, setOpsRuntimeAuth } from './ops-runtime-auth';
 import { createOpsApiClient } from './create-ops-api-client';
 import { HttpOpsApiClient } from './http-ops-api-client';
@@ -23,9 +24,17 @@ describe('createOpsApiClient', () => {
     expect(createOpsApiClient()).toBeInstanceOf(MockOpsApiClient);
   });
 
+  it('refuses HttpOpsApiClient when base URL origin is not allowlisted', () => {
+    vi.stubEnv('VITE_OPS_API_MODE', 'http');
+    vi.stubEnv('VITE_OPS_API_BASE_URL', 'https://evil.example');
+
+    expect(() => createOpsApiClient()).toThrow(OpsApiBaseUrlBlockedError);
+  });
+
   it('HttpOpsApiClient sends runtime auth headers on each request', async () => {
     vi.stubEnv('VITE_OPS_API_MODE', 'http');
     vi.stubEnv('VITE_OPS_API_BASE_URL', 'https://ops.example');
+    vi.stubEnv('VITE_OPS_API_ALLOWED_ORIGINS', 'https://ops.example');
     vi.stubEnv('VITE_OPS_ADMIN_AUTHORIZATION', 'Bearer from-env-should-not-win');
 
     setOpsRuntimeAuth({

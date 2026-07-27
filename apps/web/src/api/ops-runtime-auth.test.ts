@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   clearOpsRuntimeAuth,
@@ -52,5 +52,23 @@ describe('ops runtime auth bridge', () => {
     expect(getOpsRuntimeAuthorization()).toBe('Bearer x');
     expect(getOpsRuntimeAdminMfa()).toBeUndefined();
     expect(getOpsRuntimeAdminRole()).toBeUndefined();
+  });
+
+  it('clears expired auth on getter access without persisting', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-27T02:00:00+08:00'));
+
+    setOpsRuntimeAuth({
+      authorization: 'Bearer short-lived',
+      expiresAt: Date.parse('2026-07-27T02:00:01+08:00'),
+    });
+
+    expect(getOpsRuntimeAuthorization()).toBe('Bearer short-lived');
+
+    vi.setSystemTime(new Date('2026-07-27T02:00:01+08:00'));
+    expect(getOpsRuntimeAuthorization()).toBeUndefined();
+    expect(getOpsRuntimeAdminMfa()).toBeUndefined();
+
+    vi.useRealTimers();
   });
 });

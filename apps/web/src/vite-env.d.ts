@@ -3,6 +3,8 @@
 interface ImportMetaEnv {
   readonly VITE_OPS_API_MODE?: 'mock' | 'http';
   readonly VITE_OPS_API_BASE_URL?: string;
+  /** Production HTTPS allowlist (comma-separated origins); dev localhost exempt. */
+  readonly VITE_OPS_API_ALLOWED_ORIGINS?: string;
   /** Local 联调 only — never commit real secrets; Backend validates server-side. */
   readonly VITE_OPS_ADMIN_AUTHORIZATION?: string;
   readonly VITE_OPS_ADMIN_MFA?: string;

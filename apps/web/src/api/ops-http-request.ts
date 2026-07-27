@@ -3,6 +3,8 @@ export type OpsHttpFetcher = (
   init?: RequestInit,
 ) => Promise<Response>;
 
+import { assertOpsApiBaseUrlAllowedFromEnv } from './ops-api-base-url-policy';
+
 export type OpsHttpCredentials = RequestCredentials;
 
 export type OpsHttpHeaderProvider = () => string | undefined | Promise<string | undefined>;
@@ -12,6 +14,26 @@ export type OpsHttpExtraHeadersProvider = () =>
   | undefined
   | Promise<Record<string, string> | undefined>;
 
+/** Case-insensitive; must not be overridden via getExtraHeaders. */
+export const OPS_HTTP_PROTECTED_HEADER_NAMES = new Set([
+  'authorization',
+  'cookie',
+  'x-admin-mfa',
+  'x-admin-role',
+]);
+
+export function applyExtraOpsHttpHeaders(
+  headers: Headers,
+  extra: Record<string, string>,
+): void {
+  for (const [key, value] of Object.entries(extra)) {
+    if (!value || OPS_HTTP_PROTECTED_HEADER_NAMES.has(key.toLowerCase())) {
+      continue;
+    }
+    headers.set(key, value);
+  }
+}
+
 export interface OpsHttpRequestConfig {
   baseUrl: string;
   fetcher: OpsHttpFetcher;
@@ -20,8 +42,10 @@ export interface OpsHttpRequestConfig {
   getAuthorizationHeader?: OpsHttpHeaderProvider;
   getAdminMfaHeader?: OpsHttpHeaderProvider;
   getAdminRoleHeader?: OpsHttpHeaderProvider;
-  /** Merged after MFA/role headers; later keys do not override Authorization. */
+  /** Merged after MFA/role headers; cannot override protected auth/session headers. */
   getExtraHeaders?: OpsHttpExtraHeadersProvider;
+  /** Test override; defaults to env-based production allowlist policy. */
+  assertBaseUrlAllowed?: (baseUrl: string) => void;
 }
 
 export class OpsHttpError extends Error {
@@ -91,6 +115,9 @@ export async function opsFetchJson<T>(
   path: string,
   body?: unknown,
 ): Promise<T> {
+  const assertAllowed = config.assertBaseUrlAllowed ?? assertOpsApiBaseUrlAllowedFromEnv;
+  assertAllowed(config.baseUrl);
+
   const timeoutMs = config.timeoutMs ?? 30_000;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -119,11 +146,7 @@ export async function opsFetchJson<T>(
 
   const extra = config.getExtraHeaders ? await config.getExtraHeaders() : undefined;
   if (extra) {
-    for (const [key, value] of Object.entries(extra)) {
-      if (value) {
-        headers.set(key, value);
-      }
-    }
+    applyExtraOpsHttpHeaders(headers, extra);
   }
 
   let response: Response;
