@@ -1,6 +1,6 @@
 export const DEMO_DATA_LABEL = '演示数据' as const;
 
-export type OpsDataSource = 'demo' | 'backend' | 'placeholder';
+export type OpsDataSource = 'demo' | 'backend' | 'first_party' | 'placeholder';
 
 export interface OpsResponseMeta {
   dataSource: OpsDataSource;
@@ -25,15 +25,15 @@ export interface OverviewMetrics {
   dau: number;
   sessionCount: number;
   roomStartCount: number;
-  roomCompletionRate: number;
-  scoreReportViewRate: number;
+  roomCompletionRate?: number;
+  scoreReportViewRate?: number;
   dateFrom: string;
   dateTo: string;
-  dauDeltaPercent: number;
-  d1RetentionRate: number;
-  d7RetentionRate: number;
-  roomConversionRate: number;
-  scoringCompletionRate: number;
+  dauDeltaPercent?: number;
+  d1RetentionRate?: number;
+  d7RetentionRate?: number;
+  roomConversionRate?: number;
+  scoringCompletionRate?: number;
   activeTrend: Array<{ day: string; count: number }>;
   retentionHeatmap: Array<{ label: string; d1: number; d7: number; d30: number }>;
   funnel: Array<{ label: string; count: number; rate: number }>;
@@ -43,14 +43,14 @@ export interface OverviewMetricsResponse extends OverviewMetrics, DemoMeta {}
 
 export interface StabilitySummary {
   errorTrend: Array<{ date: string; count: number }>;
-  affectedUsersPlaceholder: number;
+  affectedUsersPlaceholder?: number;
   topIssues: Array<{ id: string; title: string; count: number }>;
-  appOpenedCount: number;
-  appOpenedFailureRate: number;
-  rtcConnectionCount: number;
-  rtcFailureRate: number;
-  recordingStatusCount: number;
-  recordingFailureRate: number;
+  appOpenedCount?: number;
+  appOpenedFailureRate?: number;
+  rtcConnectionCount?: number;
+  rtcFailureRate?: number;
+  recordingStatusCount?: number;
+  recordingFailureRate?: number;
   versionHealth: Array<{ label: string; value: number; color?: string }>;
   deviceBreakdown: Array<{ label: string; value: number }>;
   networkBreakdown: Array<{ label: string; value: number }>;
@@ -113,7 +113,7 @@ export interface AuditLogEntry {
   actor: string;
   action: string;
   target: string;
-  result: 'success' | 'failure';
+  result: 'success' | 'failure' | 'unknown';
   occurredAt: string;
   requestId?: string;
   scoreJobId?: string;

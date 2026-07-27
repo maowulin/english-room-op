@@ -44,6 +44,24 @@ describe('current admin wire contract', () => {
     });
   });
 
+  it('preserves first_party as the wire data source', () => {
+    expect(
+      mapAdminOverviewWire({
+        meta: { ...meta, data_source: 'first_party' },
+        data: {},
+      }).dataSource,
+    ).toBe('first_party');
+  });
+
+  it('does not derive room conversion from room completion', () => {
+    expect(
+      mapAdminOverviewWire({
+        meta,
+        data: { room_completion_rate: 0.762 },
+      }).roomConversionRate,
+    ).toBeUndefined();
+  });
+
   it('maps stability failure rates and trend from the envelope', () => {
     expect(
       mapAdminStabilityWire({
@@ -68,6 +86,18 @@ describe('current admin wire contract', () => {
     expect(mapAdminRoomsWire({ meta, data: { items: [], summary: { total: 0 } } }).rooms).toEqual([]);
     expect(mapAdminScoringWire({ meta, data: { items: [], summary: { total: 0 } } }).tasks).toEqual([]);
     expect(mapAdminAuditWire({ meta, data: { items: [], summary: { total: 0 } } }).entries).toEqual([]);
+  });
+
+  it('maps an audit event without result to unknown', () => {
+    expect(
+      mapAdminAuditWire({
+        meta,
+        data: {
+          items: [{ id: 'event-1', action: 'retry', request_id: 'req-1', details: {} }],
+          summary: { total: 1 },
+        },
+      }).entries[0].result,
+    ).toBe('unknown');
   });
 
   it('maps the retry response with pending/not_started semantics', () => {

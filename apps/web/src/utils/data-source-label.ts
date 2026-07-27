@@ -3,6 +3,7 @@ import type { OpsDataSource } from '../api/types';
 const LABELS: Record<OpsDataSource, string> = {
   demo: '演示数据（Mock 适配器）',
   backend: 'FastAPI /admin/v1（后端响应）',
+  first_party: 'FastAPI /admin/v1（第一方事件数据）',
   placeholder: 'FastAPI /admin/v1（占位/部分字段）',
 };
 

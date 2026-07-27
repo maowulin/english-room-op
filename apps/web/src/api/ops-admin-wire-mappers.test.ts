@@ -10,7 +10,7 @@ import {
 } from './ops-admin-wire-mappers';
 
 describe('ops-admin-wire-mappers', () => {
-  it('maps overview snake_case wire to UI metrics with zeroed retention/conversion', () => {
+  it('leaves unavailable retention and conversion metrics undefined', () => {
     const mapped = mapAdminOverviewWire({
       data_source: 'backend',
       total_stored_events: 9999,
@@ -23,11 +23,11 @@ describe('ops-admin-wire-mappers', () => {
       dataSource: 'backend',
       generatedAt: '2026-07-27T02:00:00+08:00',
       dau: 42,
-      dauDeltaPercent: 0,
-      d1RetentionRate: 0,
-      d7RetentionRate: 0,
-      roomConversionRate: 0,
-      scoringCompletionRate: 0,
+      dauDeltaPercent: undefined,
+      d1RetentionRate: undefined,
+      d7RetentionRate: undefined,
+      roomConversionRate: undefined,
+      scoringCompletionRate: undefined,
     });
     expect(mapped.disclaimer).toContain('基础事件聚合');
   });
@@ -37,6 +37,7 @@ describe('ops-admin-wire-mappers', () => {
       data_source: 'backend',
       note: 'Sentry proxy pending',
       generated_at: '2026-07-27T03:00:00+08:00',
+      trend: [{ day: '2026-07-26', count: 3 }],
       issues: [
         { issue_id: 'ERR-1', title: 'Timeout', count: 3, date: '2026-07-26' },
         { issue_id: 'ERR-2', title: 'Worker lag', count: 1 },
@@ -46,7 +47,7 @@ describe('ops-admin-wire-mappers', () => {
     expect(mapped.dataSource).toBe('backend');
     expect(mapped.generatedAt).toBe('2026-07-27T03:00:00+08:00');
     expect(mapped.disclaimer).toBe('Sentry proxy pending');
-    expect(mapped.affectedUsersPlaceholder).toBe(0);
+    expect(mapped.affectedUsersPlaceholder).toBeUndefined();
     expect(mapped.errorTrend).toEqual([{ date: '2026-07-26', count: 3 }]);
     expect(mapped.topIssues).toEqual([
       { id: 'ERR-1', title: 'Timeout', count: 3 },

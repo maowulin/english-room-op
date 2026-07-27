@@ -38,7 +38,7 @@ describe('HttpOpsApiClient', () => {
     const metrics = await client.getOverviewMetrics();
     expect(metrics.dau).toBe(100);
     expect(metrics.dataSource).toBe('backend');
-    expect(metrics.d1RetentionRate).toBe(0);
+    expect(metrics.d1RetentionRate).toBeUndefined();
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
@@ -56,7 +56,7 @@ describe('HttpOpsApiClient', () => {
     const client = new HttpOpsApiClient({ baseUrl: 'https://ops.example', fetcher });
     const summary = await client.getStabilitySummary();
     expect(summary.topIssues[0]?.id).toBe('I-1');
-    expect(summary.affectedUsersPlaceholder).toBe(0);
+    expect(summary.affectedUsersPlaceholder).toBeUndefined();
     expect(fetcher).toHaveBeenCalledOnce();
   });
 

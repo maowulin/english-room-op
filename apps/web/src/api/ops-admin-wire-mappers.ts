@@ -35,6 +35,10 @@ function asNumber(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+function optionalNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
@@ -50,7 +54,7 @@ function unwrap(body: unknown): WireEnvelope {
 
 function mapDataSource(raw: unknown): OpsDataSource {
   const value = asString(raw);
-  if (value === 'backend' || value === 'placeholder' || value === 'demo') {
+  if (value === 'backend' || value === 'first_party' || value === 'placeholder' || value === 'demo') {
     return value;
   }
   return 'backend';
@@ -124,9 +128,11 @@ function mapScoringStatus(raw: unknown): ScoringTaskStatus {
   }
 }
 
-function mapAuditResult(raw: unknown): 'success' | 'failure' {
+function mapAuditResult(raw: unknown): 'success' | 'failure' | 'unknown' {
   const value = asString(raw)?.toLowerCase();
-  return value === 'failure' || value === 'failed' || value === 'error' ? 'failure' : 'success';
+  if (value === 'failure' || value === 'failed' || value === 'error') return 'failure';
+  if (value === 'success' || value === 'succeeded' || value === 'ok') return 'success';
+  return 'unknown';
 }
 
 function mapOverviewTrend(raw: unknown): Array<{ day: string; count: number }> {
@@ -173,15 +179,13 @@ export function mapAdminOverviewWire(body: unknown): OverviewMetricsResponse {
     dau: asNumber(data.dau ?? data.unique_user_ids),
     sessionCount: asNumber(data.session_count),
     roomStartCount: asNumber(data.room_start_count),
-    roomCompletionRate: asNumber(data.room_completion_rate),
-    scoreReportViewRate: asNumber(data.score_report_view_rate),
-    dauDeltaPercent: asNumber(data.dau_delta_percent),
-    d1RetentionRate: asNumber(data.d1_retention),
-    d7RetentionRate: asNumber(data.d7_retention),
-    roomConversionRate: data.room_conversion_rate !== undefined
-      ? asNumber(data.room_conversion_rate)
-      : asNumber(data.room_completion_rate),
-    scoringCompletionRate: asNumber(data.scoring_completion_rate),
+    roomCompletionRate: optionalNumber(data.room_completion_rate),
+    scoreReportViewRate: optionalNumber(data.score_report_view_rate),
+    dauDeltaPercent: optionalNumber(data.dau_delta_percent),
+    d1RetentionRate: optionalNumber(data.d1_retention),
+    d7RetentionRate: optionalNumber(data.d7_retention),
+    roomConversionRate: optionalNumber(data.room_conversion_rate),
+    scoringCompletionRate: optionalNumber(data.scoring_completion_rate),
     activeTrend,
     retentionHeatmap: heatmap,
     funnel,
@@ -191,10 +195,7 @@ export function mapAdminOverviewWire(body: unknown): OverviewMetricsResponse {
 
 export function mapAdminStabilityWire(body: unknown): StabilitySummaryResponse {
   const { meta, data } = unwrap(body);
-  const trend = mapOverviewTrend(data.trend ?? data.error_trend ?? asArray(data.issues).map((item) => {
-    const row = asRecord(item);
-    return { day: asString(row?.date) ?? '', count: asNumber(row?.count) };
-  }));
+  const trend = mapOverviewTrend(data.trend ?? data.error_trend);
   const issues = asArray(data.issues).flatMap((item, index) => {
     const row = asRecord(item);
     return row
@@ -225,14 +226,14 @@ export function mapAdminStabilityWire(body: unknown): StabilitySummaryResponse {
   return {
     ...mapMeta(meta, STABILITY_BACKEND_DISCLAIMER),
     errorTrend: trend.map((point) => ({ date: point.day, count: point.count })),
-    affectedUsersPlaceholder: asNumber(data.affected_users),
+    affectedUsersPlaceholder: optionalNumber(data.affected_users),
     topIssues: issues,
-    appOpenedCount: asNumber(appOpened.count),
-    appOpenedFailureRate: asNumber(appOpened.failure_rate),
-    rtcConnectionCount: asNumber(rtc.count),
-    rtcFailureRate: asNumber(rtc.failure_rate),
-    recordingStatusCount: asNumber(recording.count),
-    recordingFailureRate: asNumber(recording.failure_rate),
+    appOpenedCount: optionalNumber(appOpened.count),
+    appOpenedFailureRate: optionalNumber(appOpened.failure_rate),
+    rtcConnectionCount: optionalNumber(rtc.count),
+    rtcFailureRate: optionalNumber(rtc.failure_rate),
+    recordingStatusCount: optionalNumber(recording.count),
+    recordingFailureRate: optionalNumber(recording.failure_rate),
     versionHealth,
     deviceBreakdown: breakdown(data.device_breakdown),
     networkBreakdown: breakdown(data.network_breakdown),

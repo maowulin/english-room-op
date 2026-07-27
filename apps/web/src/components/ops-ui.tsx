@@ -26,7 +26,8 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 }
 
 export function MiniSparkline({ values, tone = 'mint' }: { values?: number[]; tone?: 'mint' | 'coral' | 'amber' }) {
-  const points = values?.length ? values : [4, 5, 4, 6, 5, 7, 6];
+  if (!values?.length) return null;
+  const points = values;
   const max = Math.max(...points, 1);
   const min = Math.min(...points, 0);
   const coords = points.map((value, index) => {
