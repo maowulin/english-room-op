@@ -11,22 +11,23 @@ function jsonResponse(status: number, body: unknown, statusText = 'OK'): Respons
   });
 }
 
+const overviewWire = {
+  data_source: 'backend',
+  total_stored_events: 100,
+  unique_user_ids: 100,
+  counts_by_event_name: {},
+  generated_at: '2026-07-27T01:00:00+08:00',
+};
+
 describe('HttpOpsApiClient', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('GET /admin/v1/metrics/overview returns parsed JSON', async () => {
+  it('GET /admin/v1/metrics/overview maps snake_case wire to UI metrics', async () => {
     const fetcher = vi.fn(async (url: RequestInfo | URL) => {
       expect(String(url)).toBe('https://ops.example/admin/v1/metrics/overview');
-      return jsonResponse(200, {
-        dau: 100,
-        dauDeltaPercent: 1,
-        d1RetentionRate: 0.5,
-        d7RetentionRate: 0.3,
-        roomConversionRate: 0.2,
-        scoringCompletionRate: 0.9,
-      });
+      return jsonResponse(200, overviewWire);
     });
 
     const client = new HttpOpsApiClient({
@@ -36,67 +37,114 @@ describe('HttpOpsApiClient', () => {
 
     const metrics = await client.getOverviewMetrics();
     expect(metrics.dau).toBe(100);
+    expect(metrics.dataSource).toBe('backend');
+    expect(metrics.d1RetentionRate).toBe(0);
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
-  it('GET /admin/v1/metrics/stability uses stability path', async () => {
+  it('GET /admin/v1/metrics/stability maps issues wire to stability summary', async () => {
     const fetcher = vi.fn(async (url: RequestInfo | URL) => {
       expect(String(url)).toBe('https://ops.example/admin/v1/metrics/stability');
       return jsonResponse(200, {
-        errorTrend: [],
-        affectedUsersPlaceholder: 0,
-        topIssues: [],
+        data_source: 'backend',
+        note: 'placeholder stability',
+        generated_at: '2026-07-27T01:00:00+08:00',
+        issues: [{ issue_id: 'I-1', title: 'Demo', count: 2, date: '2026-07-27' }],
       });
     });
 
     const client = new HttpOpsApiClient({ baseUrl: 'https://ops.example', fetcher });
-    await client.getStabilitySummary();
+    const summary = await client.getStabilitySummary();
+    expect(summary.topIssues[0]?.id).toBe('I-1');
+    expect(summary.affectedUsersPlaceholder).toBe(0);
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
-  it('GET /admin/v1/rooms, /scoring, /audit/events hit expected paths', async () => {
+  it('GET /admin/v1/rooms, /scoring, /audit/events hit expected paths and map wire', async () => {
     const seen: string[] = [];
     const fetcher = vi.fn(async (url: RequestInfo | URL) => {
       seen.push(String(url));
       if (String(url).endsWith('/rooms')) {
-        return jsonResponse(200, { rooms: [] });
+        return jsonResponse(200, {
+          data_source: 'backend',
+          items: [
+            {
+              room_id: 'room-1',
+              title: 'Test',
+              status: 'live',
+              member_count: 3,
+            },
+          ],
+        });
       }
       if (String(url).endsWith('/scoring')) {
-        return jsonResponse(200, { tasks: [] });
+        return jsonResponse(200, {
+          data_source: 'backend',
+          items: [
+            {
+              score_job_id: 'task-1',
+              room_id: 'room-1',
+              player_id: 'player-xyz',
+              status: 'running',
+              attempt_count: 1,
+            },
+          ],
+        });
       }
       if (String(url).endsWith('/audit/events')) {
-        return jsonResponse(200, { entries: [] });
+        return jsonResponse(200, {
+          data_source: 'backend',
+          items: [
+            {
+              actor_role: 'viewer',
+              action: 'list_rooms',
+              target: 'rooms',
+              result: 'success',
+              occurred_at: '2026-07-27T05:00:00+08:00',
+            },
+          ],
+        });
       }
       return jsonResponse(404, { message: 'not found' });
     });
 
     const client = new HttpOpsApiClient({ baseUrl: 'https://ops.example/', fetcher });
-    await client.listRooms();
-    await client.listScoringTasks();
-    await client.listAuditLog();
+    const rooms = await client.listRooms();
+    const tasks = await client.listScoringTasks();
+    const audit = await client.listAuditLog();
 
     expect(seen).toEqual([
       'https://ops.example/admin/v1/rooms',
       'https://ops.example/admin/v1/scoring',
       'https://ops.example/admin/v1/audit/events',
     ]);
+    expect(rooms.rooms[0]?.id).toBe('room-1');
+    expect(rooms.rooms[0]?.status).toBe('active');
+    expect(tasks.tasks[0]?.id).toBe('task-1');
+    expect(tasks.tasks[0]?.playerLabel).toMatch(/^Player ·/);
+    expect(audit.entries[0]?.actor).toBe('viewer');
   });
 
-  it('POST /admin/v1/scoring/{id}/retry sends POST without client-side mock payload', async () => {
+  it('POST /admin/v1/scoring/{id}/retry maps backend wire to RetryScoringResult', async () => {
     const fetcher = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       expect(String(url)).toBe('https://ops.example/admin/v1/scoring/task-1/retry');
       expect(init?.method).toBe('POST');
       expect(init?.body).toBeUndefined();
       return jsonResponse(200, {
-        taskId: 'task-1',
-        status: 'mock_accepted',
+        score_job_id: 'task-1',
+        status: 'accepted',
         message: 'accepted',
+        admin_token: 'must-not-leak',
       });
     });
 
     const client = new HttpOpsApiClient({ baseUrl: 'https://ops.example', fetcher });
     const result = await client.retryScoringTask('task-1');
-    expect(result.taskId).toBe('task-1');
+    expect(result).toEqual({
+      taskId: 'task-1',
+      status: 'mock_accepted',
+      message: 'accepted',
+    });
   });
 
   it('throws OpsHttpError on non-2xx with JSON message', async () => {
@@ -140,14 +188,7 @@ describe('HttpOpsApiClient', () => {
       expect(init?.credentials).toBe('include');
       expect(init?.headers).toBeInstanceOf(Headers);
       expect((init?.headers as Headers).get('Authorization')).toBe('Bearer injected');
-      return jsonResponse(200, {
-        dau: 1,
-        dauDeltaPercent: 0,
-        d1RetentionRate: 0,
-        d7RetentionRate: 0,
-        roomConversionRate: 0,
-        scoringCompletionRate: 0,
-      });
+      return jsonResponse(200, overviewWire);
     });
 
     const client = new HttpOpsApiClient({
@@ -166,7 +207,10 @@ describe('HttpOpsApiClient', () => {
       expect(headers.get('X-Admin-MFA')).toBe('mfa-proof');
       expect(headers.get('X-Admin-Role')).toBe('operator');
       expect(headers.get('X-Trace-Local')).toBe('dev');
-      return jsonResponse(200, { rooms: [] });
+      return jsonResponse(200, {
+        data_source: 'backend',
+        items: [],
+      });
     });
 
     const client = new HttpOpsApiClient({

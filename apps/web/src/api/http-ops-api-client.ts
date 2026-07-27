@@ -1,12 +1,12 @@
-import type {
-  AuditLogResponseWithMeta,
-  OpsApiClient,
-  OverviewMetricsResponse,
-  RetryScoringResult,
-  RoomsListResponseWithMeta,
-  ScoringTasksResponseWithMeta,
-  StabilitySummaryResponse,
-} from './types';
+import {
+  mapAdminAuditWire,
+  mapAdminOverviewWire,
+  mapAdminRoomsWire,
+  mapAdminScoringRetryWire,
+  mapAdminScoringWire,
+  mapAdminStabilityWire,
+} from './ops-admin-wire-mappers';
+import type { OpsApiClient, RetryScoringResult } from './types';
 import {
   opsFetchJson,
   type OpsHttpExtraHeadersProvider,
@@ -37,7 +37,8 @@ const ADMIN = {
 } as const;
 
 /**
- * Production HTTP adapter — maps to FastAPI `/admin/v1/*` (Backend must implement routes + RBAC).
+ * Production HTTP adapter — maps FastAPI `/admin/v1/*` snake_case wire JSON to UI camelCase types.
+ * Wire mappers live in `ops-admin-wire-mappers.ts`; HTTP 模式仍需 admin 头与 Backend RBAC。
  */
 export class HttpOpsApiClient implements OpsApiClient {
   private readonly request: OpsHttpRequestConfig;
@@ -58,28 +59,34 @@ export class HttpOpsApiClient implements OpsApiClient {
     };
   }
 
-  getOverviewMetrics(): Promise<OverviewMetricsResponse> {
-    return opsFetchJson<OverviewMetricsResponse>(this.request, 'GET', ADMIN.metricsOverview);
+  async getOverviewMetrics() {
+    const wire = await opsFetchJson<unknown>(this.request, 'GET', ADMIN.metricsOverview);
+    return mapAdminOverviewWire(wire);
   }
 
-  getStabilitySummary(): Promise<StabilitySummaryResponse> {
-    return opsFetchJson<StabilitySummaryResponse>(this.request, 'GET', ADMIN.metricsStability);
+  async getStabilitySummary() {
+    const wire = await opsFetchJson<unknown>(this.request, 'GET', ADMIN.metricsStability);
+    return mapAdminStabilityWire(wire);
   }
 
-  listRooms(): Promise<RoomsListResponseWithMeta> {
-    return opsFetchJson<RoomsListResponseWithMeta>(this.request, 'GET', ADMIN.rooms);
+  async listRooms() {
+    const wire = await opsFetchJson<unknown>(this.request, 'GET', ADMIN.rooms);
+    return mapAdminRoomsWire(wire);
   }
 
-  listScoringTasks(): Promise<ScoringTasksResponseWithMeta> {
-    return opsFetchJson<ScoringTasksResponseWithMeta>(this.request, 'GET', ADMIN.scoring);
+  async listScoringTasks() {
+    const wire = await opsFetchJson<unknown>(this.request, 'GET', ADMIN.scoring);
+    return mapAdminScoringWire(wire);
   }
 
-  retryScoringTask(taskId: string): Promise<RetryScoringResult> {
-    return opsFetchJson<RetryScoringResult>(this.request, 'POST', ADMIN.scoringRetry(taskId));
+  async retryScoringTask(taskId: string): Promise<RetryScoringResult> {
+    const wire = await opsFetchJson<unknown>(this.request, 'POST', ADMIN.scoringRetry(taskId));
+    return mapAdminScoringRetryWire(wire, taskId);
   }
 
-  listAuditLog(): Promise<AuditLogResponseWithMeta> {
-    return opsFetchJson<AuditLogResponseWithMeta>(this.request, 'GET', ADMIN.auditEvents);
+  async listAuditLog() {
+    const wire = await opsFetchJson<unknown>(this.request, 'GET', ADMIN.auditEvents);
+    return mapAdminAuditWire(wire);
   }
 }
 

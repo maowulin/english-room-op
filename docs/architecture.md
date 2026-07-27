@@ -46,6 +46,9 @@ createOpsApiClient()
 
 `HttpOpsApiClient` 映射（客户端合约，后端待实现）：
 
+- HTTP 响应体为 FastAPI admin **snake_case wire**（如 `data_source`、`unique_user_ids`、`items`）；`ops-admin-wire-mappers.ts` 在客户端边界转换为页面使用的 **camelCase UI 类型**（`dataSource`、`rooms`、`tasks`、`entries`）。Mock 模式仍直接返回 `demo` 结构，不经 wire 映射。
+- HTTP 模式仍需 `Authorization` / `X-Admin-MFA` / `X-Admin-Role` 等 admin 头，由 Backend RBAC 校验。
+
 | OpsApiClient 方法 | HTTP |
 | --- | --- |
 | `getOverviewMetrics` | GET `/admin/v1/metrics/overview` |
