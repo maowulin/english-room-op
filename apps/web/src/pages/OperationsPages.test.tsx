@@ -106,8 +106,28 @@ describe('operations page empty and action states', () => {
     render(<ScoringPage />);
     await waitFor(() => screen.getByRole('button', { name: /重试任务/ }));
     screen.getByRole('button', { name: /重试任务/ }).click();
-    await waitFor(() => expect(screen.getByText(/本地占位/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/重试请求已记录/)).toBeInTheDocument());
+    expect(screen.queryByText(/本地占位/)).not.toBeInTheDocument();
     expect(api.retryScoringTask).toHaveBeenCalledWith('job-1');
+  });
+
+  it('filters scoring tasks by task, room, or player search', async () => {
+    api.listScoringTasks.mockResolvedValue({
+      dataSource: 'backend',
+      generatedAt: 'now',
+      disclaimer: 'ok',
+      tasks: [
+        { id: 'job-1', roomId: 'room-1', playerLabel: 'Player · 205f', status: 'queued', retryAllowed: false },
+        { id: 'job-2', roomId: 'room-2', playerLabel: 'Player · ca31', status: 'queued', retryAllowed: false },
+      ],
+    });
+
+    render(<ScoringPage />);
+    await waitFor(() => expect(screen.getByText('Player · 205f')).toBeInTheDocument());
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索任务、房间或玩家' }), { target: { value: '205f' } });
+
+    expect(screen.getByText('Player · 205f')).toBeInTheDocument();
+    expect(screen.queryByText('Player · ca31')).not.toBeInTheDocument();
   });
 
   it('filters audit events by actor, action, target, and request id', async () => {

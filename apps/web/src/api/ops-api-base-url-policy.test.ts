@@ -43,6 +43,16 @@ describe('assertOpsApiBaseUrlAllowed', () => {
     ).toThrow(/VITE_OPS_API_ALLOWED_ORIGINS/);
   });
 
+  it('allows explicitly opted-in temporary production HTTP from the allowlist', () => {
+    expect(() =>
+      assertOpsApiBaseUrlAllowed('http://111.230.56.187', {
+        isProduction: true,
+        allowedOriginsCsv: 'http://111.230.56.187',
+        allowInsecureHttp: true,
+      }),
+    ).not.toThrow();
+  });
+
   it('blocks production when origin is not on allowlist', () => {
     expect(() =>
       assertOpsApiBaseUrlAllowed('https://evil.example', {

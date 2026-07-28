@@ -17,11 +17,27 @@ describe('createOpsApiClient', () => {
     vi.unstubAllGlobals();
   });
 
-  it('uses MockOpsApiClient when HTTP mode is not configured', () => {
+  it('uses MockOpsApiClient only when mock mode is explicit', () => {
     vi.stubEnv('VITE_OPS_API_MODE', 'mock');
     vi.stubEnv('VITE_OPS_API_BASE_URL', '');
 
     expect(createOpsApiClient()).toBeInstanceOf(MockOpsApiClient);
+  });
+
+  it('uses HttpOpsApiClient by default when the backend URL is configured', () => {
+    vi.stubEnv('VITE_OPS_API_MODE', '');
+    vi.stubEnv('VITE_OPS_API_BASE_URL', 'https://ops.example');
+
+    expect(createOpsApiClient()).toBeInstanceOf(HttpOpsApiClient);
+  });
+
+  it('reports a configuration error instead of falling back to demo data', async () => {
+    vi.stubEnv('VITE_OPS_API_MODE', '');
+    vi.stubEnv('VITE_OPS_API_BASE_URL', '');
+
+    await expect(createOpsApiClient().getOverviewMetrics()).rejects.toThrow(
+      'VITE_OPS_API_BASE_URL',
+    );
   });
 
   it('refuses HttpOpsApiClient when base URL origin is not allowlisted', () => {

@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppLayout } from './AppLayout';
 
-vi.mock('../config/ops-api-mode', () => ({ isOpsHttpMode: () => true }));
+vi.mock('../config/ops-api-mode', () => ({ isOpsDemoMode: () => false }));
 
 function LocationProbe() {
   return <output data-testid="location">{useLocation().pathname}</output>;

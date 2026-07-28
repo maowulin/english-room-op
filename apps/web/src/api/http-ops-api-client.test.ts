@@ -24,6 +24,42 @@ describe('HttpOpsApiClient', () => {
     vi.useRealTimers();
   });
 
+  it('logs in, checks the current admin, and logs out through the auth endpoints', async () => {
+    const seen: string[] = [];
+    const fetcher = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      seen.push(`${init?.method ?? 'GET'} ${String(url)}`);
+      if (String(url).endsWith('/auth/login')) {
+        expect(init?.body).toBe(JSON.stringify({ username: 'admin', password: 'secret' }));
+        return jsonResponse(200, {
+          data: {
+            access_token: 'session-token',
+            token_type: 'Bearer',
+            expires_at: 1_900_000_000,
+            username: 'admin',
+            role: 'admin',
+          },
+        });
+      }
+      if (String(url).endsWith('/auth/me')) {
+        return jsonResponse(200, { data: { username: 'admin', role: 'admin', auth_type: 'session' } });
+      }
+      return jsonResponse(200, { data: { logged_out: true } });
+    });
+    const client = new HttpOpsApiClient({ baseUrl: 'https://ops.example', fetcher });
+
+    const session = await client.login('admin', 'secret');
+    const profile = await client.getCurrentAdmin();
+    await client.logout();
+
+    expect(session).toMatchObject({ accessToken: 'session-token', username: 'admin', role: 'admin' });
+    expect(profile).toEqual({ username: 'admin', role: 'admin', authType: 'session', expiresAt: undefined });
+    expect(seen.map((item) => item.replace('POST', 'POST'))).toEqual([
+      'POST https://ops.example/admin/v1/auth/login',
+      'GET https://ops.example/admin/v1/auth/me',
+      'POST https://ops.example/admin/v1/auth/logout',
+    ]);
+  });
+
   it('GET /admin/v1/metrics/overview maps snake_case wire to UI metrics', async () => {
     const fetcher = vi.fn(async (url: RequestInfo | URL) => {
       expect(String(url)).toBe('https://ops.example/admin/v1/metrics/overview');

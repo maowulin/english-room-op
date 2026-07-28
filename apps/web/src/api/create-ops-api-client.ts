@@ -1,5 +1,4 @@
 import { assertOpsApiBaseUrlAllowedFromEnv } from './ops-api-base-url-policy';
-import { getDevOpsAdminHeaders } from './ops-dev-admin-env';
 import {
   getOpsRuntimeAdminMfa,
   getOpsRuntimeAdminRole,
@@ -7,43 +6,87 @@ import {
 } from './ops-runtime-auth';
 import { HttpOpsApiClient } from './http-ops-api-client';
 import { MockOpsApiClient } from './mock-ops-api-client';
-import type { OpsApiClient } from './types';
+import type {
+  OpsApiClient,
+  RetryScoringResult,
+} from './types';
 
-function pickRuntimeThenDev(
-  runtime: () => string | undefined,
-  dev: () => string | undefined,
-): () => string | undefined {
-  return () => runtime() ?? dev();
+export class OpsApiConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OpsApiConfigurationError';
+  }
+}
+
+class UnavailableOpsApiClient implements OpsApiClient {
+  constructor(private readonly message: string) {}
+
+  private unavailable<T>(): Promise<T> {
+    return Promise.reject(new OpsApiConfigurationError(this.message));
+  }
+
+  login() {
+    return this.unavailable<Awaited<ReturnType<OpsApiClient['login']>>>();
+  }
+
+  getCurrentAdmin() {
+    return this.unavailable<Awaited<ReturnType<OpsApiClient['getCurrentAdmin']>>>();
+  }
+
+  logout() {
+    return this.unavailable<void>();
+  }
+
+  getHealth() {
+    return this.unavailable<Awaited<ReturnType<OpsApiClient['getHealth']>>>();
+  }
+
+  getOverviewMetrics() {
+    return this.unavailable<Awaited<ReturnType<OpsApiClient['getOverviewMetrics']>>>();
+  }
+
+  getStabilitySummary() {
+    return this.unavailable<Awaited<ReturnType<OpsApiClient['getStabilitySummary']>>>();
+  }
+
+  listRooms() {
+    return this.unavailable<Awaited<ReturnType<OpsApiClient['listRooms']>>>();
+  }
+
+  listScoringTasks() {
+    return this.unavailable<Awaited<ReturnType<OpsApiClient['listScoringTasks']>>>();
+  }
+
+  retryScoringTask(): Promise<RetryScoringResult> {
+    return this.unavailable<RetryScoringResult>();
+  }
+
+  listAuditLog() {
+    return this.unavailable<Awaited<ReturnType<OpsApiClient['listAuditLog']>>>();
+  }
 }
 
 export function createOpsApiClient(): OpsApiClient {
-  const mode = import.meta.env.VITE_OPS_API_MODE;
-  const baseUrl = import.meta.env.VITE_OPS_API_BASE_URL ?? '';
+  const mode = import.meta.env.VITE_OPS_API_MODE?.trim().toLowerCase();
+  const baseUrl = import.meta.env.VITE_OPS_API_BASE_URL?.trim() ?? '';
 
-  if (mode === 'http' && baseUrl) {
-    assertOpsApiBaseUrlAllowedFromEnv(baseUrl);
-
-    return new HttpOpsApiClient({
-      baseUrl,
-      credentials: 'include',
-      getAuthorizationHeader: pickRuntimeThenDev(
-        getOpsRuntimeAuthorization,
-        () => getDevOpsAdminHeaders().authorization,
-      ),
-      getAdminMfaHeader: pickRuntimeThenDev(
-        getOpsRuntimeAdminMfa,
-        () => getDevOpsAdminHeaders().adminMfa,
-      ),
-      getAdminRoleHeader: pickRuntimeThenDev(
-        getOpsRuntimeAdminRole,
-        () => getDevOpsAdminHeaders().adminRole,
-      ),
-      getExtraHeaders: () => {
-        const token = getDevOpsAdminHeaders().opsAdminToken;
-        return token ? { 'X-Ops-Admin-Token': token } : undefined;
-      },
-    });
+  if (mode === 'mock') {
+    return new MockOpsApiClient();
   }
 
-  return new MockOpsApiClient();
+  if (!baseUrl) {
+    return new UnavailableOpsApiClient(
+      '运营后端未配置：请设置 VITE_OPS_API_BASE_URL；如需演示数据，请显式设置 VITE_OPS_API_MODE=mock。',
+    );
+  }
+
+  assertOpsApiBaseUrlAllowedFromEnv(baseUrl);
+
+  return new HttpOpsApiClient({
+    baseUrl,
+    credentials: 'include',
+    getAuthorizationHeader: getOpsRuntimeAuthorization,
+    getAdminMfaHeader: getOpsRuntimeAdminMfa,
+    getAdminRoleHeader: getOpsRuntimeAdminRole,
+  });
 }

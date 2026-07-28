@@ -251,7 +251,7 @@ export function mapAdminRoomsWire(body: unknown): RoomsListResponseWithMeta {
         ? [
             {
               id: asString(memberRow.player_id ?? memberRow.id) ?? '',
-              label: maskPlayerLabel(memberRow.player_id ?? memberRow.id),
+              label: asString(memberRow.display_name) ?? maskPlayerLabel(memberRow.player_id ?? memberRow.id),
               role: asString(memberRow.role),
               speaking: memberRow.speaking === true,
               muted: memberRow.muted === true,
@@ -269,7 +269,7 @@ export function mapAdminRoomsWire(body: unknown): RoomsListResponseWithMeta {
     const room: RoomSnapshot = {
         id: asString(row.room_id ?? row.id) ?? '',
         name: asString(row.title ?? row.name) ?? 'Untitled room',
-        status: mapRoomStatus(row.status ?? row.state),
+        status: row.ended_at ? 'ended' : mapRoomStatus(row.status ?? row.state),
         memberCount: asNumber(row.member_count ?? row.memberCount),
         recordingStatus: mapRecordingStatus(row.recording_status),
     };
@@ -358,12 +358,15 @@ export function mapAdminScoringRetryWire(body: unknown, requestedTaskId: string)
   if (envelopeData) {
     const taskId = asString(envelopeData.score_job_id) ?? requestedTaskId;
     const requestId = asString(envelopeData.request_id) ?? '';
+    const rawStatus = asString(envelopeData.status);
+    const status = rawStatus === 'pending' ? 'pending' : mapScoringStatus(rawStatus);
+    const execution = asString(envelopeData.execution) as RetryScoringResult['execution'];
     return {
       taskId,
-      status: 'pending',
-      execution: 'not_started',
+      status,
+      execution,
       requestId,
-      message: '本地占位：重试请求已提交，评分尚未启动。',
+      message: asString(envelopeData.failure_reason) ?? '评分重试已执行。',
     };
   }
 

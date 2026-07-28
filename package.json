@@ -1,4 +1,10 @@
 {
   "private": true,
-  "name": "english-room-op"
+  "name": "english-room-op",
+  "scripts": {
+    "typecheck": "pnpm --filter @english-room-op/web typecheck",
+    "lint": "pnpm --filter @english-room-op/web lint",
+    "test": "pnpm --filter @english-room-op/web test",
+    "build": "pnpm --filter @english-room-op/web build"
+  }
 }

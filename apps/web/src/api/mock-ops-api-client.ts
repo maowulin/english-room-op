@@ -5,10 +5,26 @@ import {
   mockScoringTasks,
   mockStabilitySummary,
 } from '../data/mock-ops-data';
-import type { OpsApiClient, RetryScoringResult } from './types';
+import type { AdminLoginResult, OpsApiClient, RetryScoringResult } from './types';
 
 /** Mock adapter — reads from `src/data/mock-ops-data.ts` only. */
 export class MockOpsApiClient implements OpsApiClient {
+  async login(username: string): Promise<AdminLoginResult> {
+    return {
+      accessToken: 'mock-session-token',
+      tokenType: 'Bearer',
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      username,
+      role: 'admin',
+    };
+  }
+
+  async getCurrentAdmin() {
+    return { username: 'demo-admin', role: 'admin', authType: 'mock' };
+  }
+
+  async logout(): Promise<void> {}
+
   async getHealth() {
     return { status: 'ok' as const, generatedAt: new Date().toISOString() };
   }

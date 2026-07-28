@@ -5,12 +5,26 @@ import {
   getOpsRuntimeAdminMfa,
   getOpsRuntimeAdminRole,
   getOpsRuntimeAuthorization,
+  restoreOpsRuntimeAuth,
   setOpsRuntimeAuth,
 } from './ops-runtime-auth';
+
+const AUTH_STORAGE_KEY = 'english-room.ops.auth';
+const sessionStore = new Map<string, string>();
+
+const fakeSessionStorage = {
+  clear: () => sessionStore.clear(),
+  getItem: (key: string) => sessionStore.get(key) ?? null,
+  removeItem: (key: string) => sessionStore.delete(key),
+  setItem: (key: string, value: string) => sessionStore.set(key, value),
+};
+
+Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: fakeSessionStorage });
 
 describe('ops runtime auth bridge', () => {
   afterEach(() => {
     clearOpsRuntimeAuth();
+    sessionStorage.clear();
   });
 
   it('starts with no admin headers', () => {
@@ -70,5 +84,26 @@ describe('ops runtime auth bridge', () => {
     expect(getOpsRuntimeAdminMfa()).toBeUndefined();
 
     vi.useRealTimers();
+  });
+
+  it('persists and restores the session auth across a page reload', () => {
+    setOpsRuntimeAuth({
+      authorization: 'Bearer persisted-token',
+      adminRole: 'admin',
+      expiresAt: Date.parse('2027-07-27T04:00:00+08:00'),
+    });
+
+    expect(sessionStorage.getItem(AUTH_STORAGE_KEY)).toContain('persisted-token');
+
+    clearOpsRuntimeAuth();
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+      authorization: 'Bearer persisted-token',
+      adminRole: 'admin',
+      expiresAt: Date.parse('2027-07-27T04:00:00+08:00'),
+    }));
+    restoreOpsRuntimeAuth();
+
+    expect(getOpsRuntimeAuthorization()).toBe('Bearer persisted-token');
+    expect(getOpsRuntimeAdminRole()).toBe('admin');
   });
 });

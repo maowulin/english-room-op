@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
-import { isOpsHttpMode } from '../config/ops-api-mode';
+import { isOpsDemoMode } from '../config/ops-api-mode';
 import { mockOverviewMetrics } from '../data/mock-ops-data';
 import { DemoDataBanner } from './DemoDataBanner';
 import { Icon, type IconName } from './ops-ui';
@@ -21,8 +21,8 @@ function NavItems({ mobile = false }: { mobile?: boolean }) {
   </NavLink>)}</>;
 }
 
-export function AppLayout() {
-  const showDemoBanner = !isOpsHttpMode();
+export function AppLayout({ onLogout }: { onLogout?: () => void | Promise<void> }) {
+  const showDemoBanner = isOpsDemoMode();
   const location = useLocation();
   const navigate = useNavigate();
   const isHome = location.pathname === '/';
@@ -33,7 +33,7 @@ export function AppLayout() {
     <aside className="sidebar" aria-label="主导航">
       <div className="brand"><span className="brand__mark">✦</span><span><strong>English Room</strong><small>运营台</small></span></div>
       <nav className="sidebar__nav"><NavItems /></nav>
-      <div className="sidebar__footer"><div className="profile"><span className="profile__avatar">林</span><span><strong>林舟 · 管理员</strong><small>已认证</small></span><span className="profile__chevron">⌄</span></div><button type="button" className="logout-button">↪ <span>退出登录</span></button></div>
+      <div className="sidebar__footer"><div className="profile"><span className="profile__avatar">管</span><span><strong>管理员</strong><small>已认证</small></span><span className="profile__chevron">⌄</span></div><button type="button" className="logout-button" onClick={() => void onLogout?.()}>↪ <span>退出登录</span></button></div>
     </aside>
     <header className="mobile-topbar"><button type="button" className="icon-button" aria-label="返回" disabled={isHome} onClick={() => { if (!isHome) navigate('/'); }}>‹</button><div className="brand brand--mobile"><span className="brand__mark">✦</span><strong>{title}</strong></div><span className="auth-chip"><Icon name="shield" size={15} /> 管理员已认证</span></header>
     <main className="app-main" id="main-content"><Outlet /></main>

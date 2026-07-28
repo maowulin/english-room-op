@@ -9,6 +9,8 @@ export class OpsApiBaseUrlBlockedError extends Error {
 export type OpsApiBaseUrlPolicyContext = {
   isProduction: boolean;
   allowedOriginsCsv?: string;
+  /** Temporary IP/HTTP deployment escape hatch; remove after HTTPS is available. */
+  allowInsecureHttp?: boolean;
 };
 
 const LOCAL_DEV_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -56,7 +58,7 @@ export function assertOpsApiBaseUrlAllowed(
     return;
   }
 
-  if (ctx.isProduction && parsed.protocol !== 'https:') {
+  if (ctx.isProduction && parsed.protocol !== 'https:' && !ctx.allowInsecureHttp) {
     throw new OpsApiBaseUrlBlockedError('生产环境运营台 API 必须使用 HTTPS');
   }
 
@@ -74,6 +76,7 @@ export function readOpsApiBaseUrlPolicyFromEnv(): OpsApiBaseUrlPolicyContext {
   return {
     isProduction: import.meta.env.PROD,
     allowedOriginsCsv: import.meta.env.VITE_OPS_API_ALLOWED_ORIGINS,
+    allowInsecureHttp: import.meta.env.VITE_OPS_ALLOW_INSECURE_HTTP === 'true',
   };
 }
 

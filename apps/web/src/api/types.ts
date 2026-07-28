@@ -18,6 +18,21 @@ export interface OpsHealthResponse {
   generatedAt: string;
 }
 
+export interface AdminLoginResult {
+  accessToken: string;
+  tokenType: 'Bearer';
+  expiresAt: number;
+  username: string;
+  role: string;
+}
+
+export interface AdminProfile {
+  username: string;
+  role: string;
+  authType: string;
+  expiresAt?: number;
+}
+
 /** @deprecated use OpsResponseMeta */
 export type DemoMeta = OpsResponseMeta;
 
@@ -129,14 +144,17 @@ export interface AuditLogResponseWithMeta extends AuditLogResponse, DemoMeta {}
 
 export interface RetryScoringResult {
   taskId: string;
-  status: 'mock_accepted' | 'pending';
-  execution?: 'not_started';
+  status: ScoringTaskStatus | 'pending' | 'mock_accepted';
+  execution?: 'not_started' | 'running' | 'completed' | 'failed';
   requestId?: string;
   message: string;
 }
 
 /** Future HTTP adapter boundary: `/admin/v1/metrics/*`, `/rooms/*`, `/scoring/*`, `/sentry/*`. */
 export interface OpsApiClient {
+  login(username: string, password: string): Promise<AdminLoginResult>;
+  getCurrentAdmin(): Promise<AdminProfile>;
+  logout(): Promise<void>;
   getHealth(): Promise<OpsHealthResponse>;
   getOverviewMetrics(range?: OpsDateRange): Promise<OverviewMetricsResponse>;
   getStabilitySummary(range?: OpsDateRange): Promise<StabilitySummaryResponse>;

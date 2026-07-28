@@ -1,0 +1,9 @@
+.git
+node_modules
+apps/web/node_modules
+apps/web/dist
+.env
+.env.*
+!.env.example
+coverage
+.DS_Store

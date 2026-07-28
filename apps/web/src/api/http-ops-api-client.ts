@@ -6,7 +6,14 @@ import {
   mapAdminScoringWire,
   mapAdminStabilityWire,
 } from './ops-admin-wire-mappers';
-import type { OpsApiClient, OpsDateRange, OpsHealthResponse, RetryScoringResult } from './types';
+import type {
+  AdminLoginResult,
+  AdminProfile,
+  OpsApiClient,
+  OpsDateRange,
+  OpsHealthResponse,
+  RetryScoringResult,
+} from './types';
 import {
   opsFetchJson,
   type OpsHttpExtraHeadersProvider,
@@ -30,6 +37,9 @@ export type HttpOpsApiClientOptions = {
 
 const ADMIN = {
   health: '/health',
+  login: '/admin/v1/auth/login',
+  currentAdmin: '/admin/v1/auth/me',
+  logout: '/admin/v1/auth/logout',
   metricsOverview: '/admin/v1/metrics/overview',
   metricsStability: '/admin/v1/metrics/stability',
   rooms: '/admin/v1/rooms',
@@ -42,16 +52,36 @@ function withDateRange(path: string, range?: OpsDateRange): string {
   if (!range?.dateFrom && !range?.dateTo) {
     return path;
   }
+
   const params = new URLSearchParams();
   if (range.dateFrom) params.set('date_from', range.dateFrom);
   if (range.dateTo) params.set('date_to', range.dateTo);
   return `${path}?${params.toString()}`;
 }
 
+function unwrapAdminData(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object') return {};
+  const root = value as Record<string, unknown>;
+  return root.data && typeof root.data === 'object' ? (root.data as Record<string, unknown>) : root;
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function numberValue(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function optionalNumberValue(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
 function generateUuidV4(): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
+
   const bytes = Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
@@ -81,6 +111,36 @@ export class HttpOpsApiClient implements OpsApiClient {
       getExtraHeaders: options.getExtraHeaders,
       assertBaseUrlAllowed: options.assertBaseUrlAllowed,
     };
+  }
+
+  async login(username: string, password: string): Promise<AdminLoginResult> {
+    const wire = await opsFetchJson<unknown>(this.request, 'POST', ADMIN.login, {
+      username,
+      password,
+    });
+    const data = unwrapAdminData(wire);
+    return {
+      accessToken: stringValue(data.access_token),
+      tokenType: 'Bearer',
+      expiresAt: numberValue(data.expires_at),
+      username: stringValue(data.username),
+      role: stringValue(data.role),
+    };
+  }
+
+  async getCurrentAdmin(): Promise<AdminProfile> {
+    const wire = await opsFetchJson<unknown>(this.request, 'GET', ADMIN.currentAdmin);
+    const data = unwrapAdminData(wire);
+    return {
+      username: stringValue(data.username),
+      role: stringValue(data.role),
+      authType: stringValue(data.auth_type),
+      expiresAt: optionalNumberValue(data.expires_at),
+    };
+  }
+
+  async logout(): Promise<void> {
+    await opsFetchJson<unknown>(this.request, 'POST', ADMIN.logout);
   }
 
   async getHealth(): Promise<OpsHealthResponse> {

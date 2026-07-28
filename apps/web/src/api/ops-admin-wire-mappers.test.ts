@@ -64,8 +64,13 @@ describe('ops-admin-wire-mappers', () => {
           title: 'Lobby Room',
           status: 'lobby',
           version: 1,
-          host_player_id: 'host-secret',
           member_count: 2,
+          created_at: '2026-07-27T04:00:00Z',
+          recording_status: 'recording',
+          scoring_status: 'processing',
+          members: [
+            { player_id: 'player-secret-1', ready: true, joined_at: '2026-07-27T04:01:00Z' },
+          ],
         },
         {
           room_id: 'r-2',
@@ -88,7 +93,17 @@ describe('ops-admin-wire-mappers', () => {
         name: 'Lobby Room',
         status: 'waiting',
         memberCount: 2,
-        recordingStatus: 'idle',
+        recordingStatus: 'recording',
+        createdAt: '2026-07-27T04:00:00Z',
+        scoringStatus: 'processing',
+        members: [
+          {
+            id: 'player-secret-1',
+            label: 'Player · et-1',
+            speaking: false,
+            muted: false,
+          },
+        ],
       },
       {
         id: 'r-2',
